@@ -1432,12 +1432,11 @@ window.addEventListener("offline", () => {
 // ==========================================
 carregarLocal();
 
-// Sobrescreve a função abrirModal para usar abrirModalProduto
 window.abrirModal = abrirModalProduto;
 window.fecharModal = fecharModalProduto;
 
 // ==========================================
-// LOGIN MULTI-TENANT
+// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
 // ==========================================
 
 async function realizarLoginMulti(e) {
@@ -1544,67 +1543,50 @@ async function carregarDadosDoEstabelecimento() {
 }
 
 // ==========================================
-// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
+// LOGOUT MULTI-TENANT
 // ==========================================
 
-async function realizarLoginMulti(e) {
-  e.preventDefault();
+function logoutMulti() {
+  tenantManager.logout();
+  usuarioLogado = null;
+  carrinho = [];
   
-  const email = document.getElementById("login-email").value.trim();
-  const senha = document.getElementById("login-senha-multi").value.trim();
+  const formLogin = document.getElementById("form-login");
+  if (formLogin) formLogin.reset();
+  
+  document.getElementById("sistema-principal").classList.add("hidden");
+  document.getElementById("tela-login").classList.remove("hidden");
+  
+  document.getElementById("nome-usuario-logado").innerText = "";
+  document.getElementById("cargo-usuario-logado").innerText = "";
+  document.getElementById("estabelecimento-nome").innerText = "Carregando...";
+  
+  console.log("👋 Usuário desconectado com sucesso!");
+}
 
-  if (!email || !senha) {
-    alert("Preencha todos os campos!");
-    return;
-  }
+// ==========================================
+// SOBRE
+// ==========================================
 
-  const resultado = tenantManager.login(email, senha);
+function abrirModalSobre() {
+  document.getElementById("modal-sobre").classList.remove("hidden");
+}
 
-  if (!resultado.success) {
-    alert(resultado.message);
-    return;
-  }
+function fecharModalSobre() {
+  document.getElementById("modal-sobre").classList.add("hidden");
+}
 
-  const { usuario, estabelecimento, isSuperAdmin } = resultado;
-
-  usuarioLogado = {
-    usuario: usuario.email.split('@')[0],
-    senha: usuario.senha,
-    nome: usuario.nome,
-    cargo: usuario.cargo,
-    estabelecimentoId: estabelecimento.id,
-    estabelecimentoNome: estabelecimento.nome,
-    isSuperAdmin: isSuperAdmin || false
-  };
-
-  CONFIG_ESTABELECIMENTO = estabelecimento.configuracao;
-
-  document.getElementById("tela-login").classList.add("hidden");
-  document.getElementById("sistema-principal").classList.remove("hidden");
-
-  // ==========================================
-  // SE FOR SUPER ADMIN - ESCONDE O PDV E MOSTRA PAINEL
-  // ==========================================
-  if (isSuperAdmin) {
-    document.getElementById("sistema-principal").classList.add("hidden"); // Esconde TUDO do PDV
-    document.getElementById("nome-usuario-logado").innerText = usuarioLogado.nome;
-    document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
-    
-    const elEstabelecimento = document.getElementById("estabelecimento-nome");
-    if (elEstabelecimento) {
-      elEstabelecimento.innerText = "👑 SUPER ADMIN - Controle Total";
-      elEstabelecimento.className = "font-bold text-purple-400";
+document.addEventListener("keydown", function(e) {
+  if (e.key === "Escape") {
+    const modalSobre = document.getElementById("modal-sobre");
+    if (modalSobre && !modalSobre.classList.contains("hidden")) {
+      fecharModalSobre();
     }
-    
-    // CHAMA DIRETO A FUNÇÃO QUE ABRE O MODAL
-    tenantManager.abrirPainelAdmin();
-    
-    console.log('👑 Super Admin logado - Painel Admin aberto!');
-    return; // PARA A EXECUÇÃO AQUI
   }
+});
 
-  // ==========================================
-// CADASTRO DE CLIENTES (PÚBLICO)
+// ==========================================
+// 🔥 TELA DE CADASTRO
 // ==========================================
 
 function mostrarTelaCadastro() {
@@ -1625,7 +1607,6 @@ async function realizarCadastro(e) {
   const senha = document.getElementById('cadastro-senha').value;
   const senhaConfirm = document.getElementById('cadastro-senha-confirm').value;
 
-  // Validações
   if (!nome || !email || !senha) {
     alert('❌ Preencha todos os campos!');
     return;
@@ -1641,7 +1622,6 @@ async function realizarCadastro(e) {
     return;
   }
 
-  // Verificar se email já está cadastrado (ativo ou pendente)
   const usuarios = JSON.parse(localStorage.getItem('mt_usuarios')) || [];
   const usuariosPendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes')) || [];
 
@@ -1650,7 +1630,6 @@ async function realizarCadastro(e) {
     return;
   }
 
-  // Salvar cadastro pendente
   const novoCadastro = {
     id: Date.now(),
     nome: nome,
@@ -1669,52 +1648,6 @@ async function realizarCadastro(e) {
 
   alert(`✅ Cadastro realizado com sucesso!\n\n📧 Email: ${email}\n\n⏳ Aguarde a aprovação do administrador.\n\nVocê será notificado quando sua conta for ativada.`);
 
-  // Limpar formulário
   document.getElementById('form-cadastro').reset();
   mostrarTelaLogin();
 }
-
-  // ==========================================
-  // USUÁRIO NORMAL - Mostra o PDV normalmente
-  // ==========================================
-  
-  // Mostra os botões de navegação
-  document.querySelectorAll('nav button').forEach(btn => {
-    btn.style.display = '';
-  });
-
-  document.getElementById("nome-usuario-logado").innerText = usuarioLogado.nome;
-  document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
-  
-  const elEstabelecimento = document.getElementById("estabelecimento-nome");
-  if (elEstabelecimento) {
-    elEstabelecimento.innerText = estabelecimento.nome;
-    elEstabelecimento.className = "font-bold text-amber-400";
-  }
-
-  // Mostra apenas a aba PDV
-  document.getElementById("aba-pdv").classList.remove("hidden");
-  document.getElementById("aba-comandas").classList.add("hidden");
-  document.getElementById("aba-estoque").classList.add("hidden");
-  document.getElementById("aba-pedidos").classList.add("hidden");
-  document.getElementById("aba-gerencia").classList.add("hidden");
-
-  const btnGerencia = document.getElementById("btn-aba-gerencia");
-  if (usuarioLogado.cargo === "gerente" || usuarioLogado.cargo === "admin") {
-    btnGerencia.classList.remove("hidden");
-  } else {
-    btnGerencia.classList.add("hidden");
-  }
-
-  await carregarDadosDoEstabelecimento();
-
-  renderizarProdutos();
-  renderizarCarrinho();
-  renderizarTabelaEstoque();
-  renderizarHistoricoPedidos();
-  renderizarDashboardGerencia();
-  renderizarComandas();
-  atualizarPainelDisponibilidade();
-  
-  console.log('✅ Usuário normal logado com sucesso!');
-};
