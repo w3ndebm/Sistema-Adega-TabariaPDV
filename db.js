@@ -296,6 +296,32 @@ async savePendente(pendente) {
   return pendente;
 }
 
+  // ==========================================
+  // CADASTROS PENDENTES
+  // ==========================================
+
+  async getAllPendentes() {
+    const pendentes = await this.request('/pendentes');
+    return pendentes || [];
+  }
+
+  async savePendente(pendente) {
+    const existentes = await this.getAllPendentes();
+    const existente = existentes.find(p => p.id === pendente.id);
+
+    if (existente) {
+      await this.request(`/pendentes/${pendente.id}`, 'PUT', pendente);
+    } else {
+      await this.request('/pendentes', 'POST', pendente);
+    }
+    
+    return pendente;
+  }
+
+  async deletePendente(id) {
+    await this.request(`/pendentes/${id}`, 'DELETE');
+  }
+
 async deletePendente(id) {
   await this.request(`/pendentes/${id}`, 'DELETE');
 }
