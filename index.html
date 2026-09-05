@@ -14,6 +14,63 @@
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
 
   <!-- ========================================== -->
+<!-- TELA DE CADASTRO (PÚBLICA) -->
+<!-- ========================================== -->
+<div id="tela-cadastro" class="hidden min-h-screen flex items-center justify-center p-4">
+  <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
+    <div class="text-center">
+      <h1 class="text-2xl font-black text-white">Criar <span class="text-emerald-400">Conta</span></h1>
+      <p class="text-xs text-gray-400 mt-1">Cadastre-se para acessar o sistema</p>
+    </div>
+
+    <form id="form-cadastro" onsubmit="realizarCadastro(event)" class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">👤 Nome Completo *</label>
+        <input type="text" id="cadastro-nome" required placeholder="Seu nome" 
+               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email *</label>
+        <input type="email" id="cadastro-email" required placeholder="seu@email.com" 
+               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha *</label>
+        <input type="password" id="cadastro-senha" required placeholder="••••••••" minlength="4"
+               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">🔁 Confirmar Senha *</label>
+        <input type="password" id="cadastro-senha-confirm" required placeholder="••••••••" minlength="4"
+               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+      </div>
+
+      <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 text-[10px] text-gray-400">
+        <p>📋 Ao se cadastrar, você concorda com os termos de uso.</p>
+        <p class="text-amber-400 mt-1">⏳ Seu cadastro será analisado pelo administrador.</p>
+      </div>
+
+      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
+        📝 Criar Conta
+      </button>
+    </form>
+
+    <div class="text-center text-xs text-gray-400">
+      Já tem uma conta? 
+      <button onclick="mostrarTelaLogin()" class="text-emerald-400 hover:underline font-bold">Faça login</button>
+    </div>
+
+    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700/50 text-[10px] text-gray-500 text-center">
+      <p class="font-bold text-amber-400">⏳ Aguarde aprovação do administrador</p>
+      <p>Você receberá um email quando sua conta for aprovada.</p>
+    </div>
+  </div>
+</div>
+
+  <!-- ========================================== -->
   <!-- TELA DE LOGIN MULTI-TENANT -->
   <!-- ========================================== -->
   <div id="tela-login" class="min-h-screen flex items-center justify-center p-4">

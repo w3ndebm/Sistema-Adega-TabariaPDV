@@ -1604,6 +1604,77 @@ async function realizarLoginMulti(e) {
   }
 
   // ==========================================
+// CADASTRO DE CLIENTES (PÚBLICO)
+// ==========================================
+
+function mostrarTelaCadastro() {
+  document.getElementById("tela-login").classList.add("hidden");
+  document.getElementById("tela-cadastro").classList.remove("hidden");
+}
+
+function mostrarTelaLogin() {
+  document.getElementById("tela-cadastro").classList.add("hidden");
+  document.getElementById("tela-login").classList.remove("hidden");
+}
+
+async function realizarCadastro(e) {
+  e.preventDefault();
+
+  const nome = document.getElementById('cadastro-nome').value.trim();
+  const email = document.getElementById('cadastro-email').value.trim();
+  const senha = document.getElementById('cadastro-senha').value;
+  const senhaConfirm = document.getElementById('cadastro-senha-confirm').value;
+
+  // Validações
+  if (!nome || !email || !senha) {
+    alert('❌ Preencha todos os campos!');
+    return;
+  }
+
+  if (senha !== senhaConfirm) {
+    alert('❌ As senhas não coincidem!');
+    return;
+  }
+
+  if (senha.length < 4) {
+    alert('❌ A senha deve ter pelo menos 4 caracteres!');
+    return;
+  }
+
+  // Verificar se email já está cadastrado (ativo ou pendente)
+  const usuarios = JSON.parse(localStorage.getItem('mt_usuarios')) || [];
+  const usuariosPendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes')) || [];
+
+  if (usuarios.some(u => u.email === email) || usuariosPendentes.some(u => u.email === email)) {
+    alert('❌ Este email já está cadastrado ou pendente de aprovação!');
+    return;
+  }
+
+  // Salvar cadastro pendente
+  const novoCadastro = {
+    id: Date.now(),
+    nome: nome,
+    email: email,
+    senha: senha,
+    estabelecimentoId: null,
+    cargo: null,
+    ativo: false,
+    pendente: true,
+    dataCadastro: new Date().toISOString(),
+    aprovado: false
+  };
+
+  usuariosPendentes.push(novoCadastro);
+  localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(usuariosPendentes));
+
+  alert(`✅ Cadastro realizado com sucesso!\n\n📧 Email: ${email}\n\n⏳ Aguarde a aprovação do administrador.\n\nVocê será notificado quando sua conta for ativada.`);
+
+  // Limpar formulário
+  document.getElementById('form-cadastro').reset();
+  mostrarTelaLogin();
+}
+
+  // ==========================================
   // USUÁRIO NORMAL - Mostra o PDV normalmente
   // ==========================================
   

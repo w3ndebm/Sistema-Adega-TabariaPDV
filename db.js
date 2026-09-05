@@ -1,188 +1,295 @@
 // ==========================================
-// BANCO DE DADOS INDEXEDDB - ADEGA PDV
+// BANCO DE DADOS - JSON SERVER (NUVEM)
 // ==========================================
+
+// 🔥 COLOQUE A URL DO SEU SERVIDOR NO RENDER
+const API_URL = 'https://adegapdv-api.onrender.com';
 
 class Database {
   constructor() {
-    this.dbName = 'AdegaPDVDB';
-    this.dbVersion = 1;
-    this.db = null;
-    this.isReady = false;
-    this.queue = [];
+    this.isReady = true;
+    console.log('📦 Banco de dados JSON Server pronto!');
+    console.log('🌐 API:', API_URL);
   }
 
-  async init() {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, this.dbVersion);
+  // ==========================================
+  // REQUISIÇÕES HTTP
+  // ==========================================
 
-      request.onerror = () => {
-        console.error('Erro ao abrir banco:', request.error);
-        reject(request.error);
-      };
+  async request(endpoint, method = 'GET', data = null) {
+    const options = {
+      method: method,
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    };
 
-      request.onsuccess = () => {
-        this.db = request.result;
-        this.isReady = true;
-        console.log('✅ Banco de dados conectado com sucesso!');
-        this.processQueue();
-        resolve();
-      };
+    if (data) {
+      options.body = JSON.stringify(data);
+    }
 
-      request.onupgradeneeded = (event) => {
-        const db = event.target.result;
-        
-        if (!db.objectStoreNames.contains('produtos')) {
-          const store = db.createObjectStore('produtos', { keyPath: 'id' });
-          store.createIndex('categoria', 'categoria', { unique: false });
-          console.log('📦 Store "produtos" criada');
-        }
-
-        if (!db.objectStoreNames.contains('pedidos')) {
-          const store = db.createObjectStore('pedidos', { keyPath: 'id' });
-          store.createIndex('data', 'data', { unique: false });
-          console.log('📦 Store "pedidos" criada');
-        }
-
-        if (!db.objectStoreNames.contains('comandas')) {
-          const store = db.createObjectStore('comandas', { keyPath: 'id' });
-          store.createIndex('numComanda', 'numComanda', { unique: true });
-          console.log('📦 Store "comandas" criada');
-        }
-
-        if (!db.objectStoreNames.contains('movimentacoes')) {
-          const store = db.createObjectStore('movimentacoes', { keyPath: 'id' });
-          store.createIndex('data', 'data', { unique: false });
-          console.log('📦 Store "movimentacoes" criada');
-        }
-
-        if (!db.objectStoreNames.contains('configuracoes')) {
-          db.createObjectStore('configuracoes', { keyPath: 'chave' });
-          console.log('📦 Store "configuracoes" criada');
-        }
-
-        if (!db.objectStoreNames.contains('fechamentos')) {
-          const store = db.createObjectStore('fechamentos', { keyPath: 'id', autoIncrement: true });
-          store.createIndex('data', 'data', { unique: false });
-          console.log('📦 Store "fechamentos" criada');
-        }
-      };
-    });
-  }
-
-  processQueue() {
-    while (this.queue.length > 0) {
-      const operation = this.queue.shift();
-      operation();
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, options);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('❌ Erro na requisição:', error);
+      return null;
     }
   }
 
-  async execute(storeName, mode, callback) {
-    if (!this.isReady) {
-      return new Promise((resolve, reject) => {
-        this.queue.push(async () => {
-          try {
-            const result = await this.execute(storeName, mode, callback);
-            resolve(result);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      });
-    }
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction(storeName, mode);
-      const store = transaction.objectStore(storeName);
-      const request = callback(store);
-
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-  }
+  // ==========================================
+  // PRODUTOS
+  // ==========================================
 
   async getAllProdutos() {
-    return this.execute('produtos', 'readonly', (store) => store.getAll());
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return [];
+    
+    const produtos = await this.request(`/produtos?estabelecimentoId=${estabelecimentoId}`);
+    return produtos || [];
   }
 
   async saveProduto(produto) {
-    return this.execute('produtos', 'readwrite', (store) => store.put(produto));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return null;
+
+    const existentes = await this.getAllProdutos();
+    const existente = existentes.find(p => p.id === produto.id);
+
+    if (existente) {
+      await this.request(`/produtos/${produto.id}`, 'PUT', produto);
+    } else {
+      await this.request('/produtos', 'POST', produto);
+    }
+    
+    return produto;
   }
 
   async deleteProduto(id) {
-    return this.execute('produtos', 'readwrite', (store) => store.delete(id));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return;
+
+    await this.request(`/produtos/${id}`, 'DELETE');
   }
 
+  // ==========================================
+  // PEDIDOS
+  // ==========================================
+
   async getAllPedidos() {
-    return this.execute('pedidos', 'readonly', (store) => store.getAll());
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return [];
+    
+    const pedidos = await this.request(`/pedidos?estabelecimentoId=${estabelecimentoId}`);
+    return pedidos || [];
   }
 
   async savePedido(pedido) {
-    return this.execute('pedidos', 'readwrite', (store) => store.put(pedido));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return null;
+
+    const existentes = await this.getAllPedidos();
+    const existente = existentes.find(p => p.id === pedido.id);
+
+    if (existente) {
+      await this.request(`/pedidos/${pedido.id}`, 'PUT', pedido);
+    } else {
+      await this.request('/pedidos', 'POST', pedido);
+    }
+    
+    return pedido;
   }
 
+  // ==========================================
+  // COMANDAS
+  // ==========================================
+
   async getAllComandas() {
-    return this.execute('comandas', 'readonly', (store) => store.getAll());
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return [];
+    
+    const comandas = await this.request(`/comandas?estabelecimentoId=${estabelecimentoId}`);
+    return comandas || [];
   }
 
   async saveComanda(comanda) {
-    return this.execute('comandas', 'readwrite', (store) => store.put(comanda));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return null;
+
+    const existentes = await this.getAllComandas();
+    const existente = existentes.find(c => c.id === comanda.id);
+
+    if (existente) {
+      await this.request(`/comandas/${comanda.id}`, 'PUT', comanda);
+    } else {
+      await this.request('/comandas', 'POST', comanda);
+    }
+    
+    return comanda;
   }
 
   async deleteComanda(id) {
-    return this.execute('comandas', 'readwrite', (store) => store.delete(id));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return;
+
+    await this.request(`/comandas/${id}`, 'DELETE');
   }
 
+  // ==========================================
+  // MOVIMENTAÇÕES
+  // ==========================================
+
   async getAllMovimentacoes() {
-    return this.execute('movimentacoes', 'readonly', (store) => store.getAll());
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return [];
+    
+    const movimentacoes = await this.request(`/movimentacoes?estabelecimentoId=${estabelecimentoId}`);
+    return movimentacoes || [];
   }
 
   async saveMovimentacao(movimentacao) {
-    return this.execute('movimentacoes', 'readwrite', (store) => store.put(movimentacao));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return null;
+
+    const existentes = await this.getAllMovimentacoes();
+    const existente = existentes.find(m => m.id === movimentacao.id);
+
+    if (existente) {
+      await this.request(`/movimentacoes/${movimentacao.id}`, 'PUT', movimentacao);
+    } else {
+      await this.request('/movimentacoes', 'POST', movimentacao);
+    }
+    
+    return movimentacao;
   }
 
+  // ==========================================
+  // CONFIGURAÇÕES
+  // ==========================================
+
   async getConfiguracao(chave) {
-    return this.execute('configuracoes', 'readonly', (store) => store.get(chave));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return null;
+    
+    const configs = await this.request(`/configuracoes?chave=${chave}&estabelecimentoId=${estabelecimentoId}`);
+    return configs && configs.length > 0 ? configs[0].valor : null;
   }
 
   async saveConfiguracao(chave, valor) {
-    return this.execute('configuracoes', 'readwrite', (store) => store.put({ chave, valor }));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return;
+
+    const config = { chave, valor, estabelecimentoId };
+    const existentes = await this.request(`/configuracoes?chave=${chave}&estabelecimentoId=${estabelecimentoId}`);
+    
+    if (existentes && existentes.length > 0) {
+      await this.request(`/configuracoes/${existentes[0].id}`, 'PUT', config);
+    } else {
+      await this.request('/configuracoes', 'POST', config);
+    }
   }
 
+  // ==========================================
+  // FECHAMENTOS
+  // ==========================================
+
   async getAllFechamentos() {
-    return this.execute('fechamentos', 'readonly', (store) => store.getAll());
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return [];
+    
+    const fechamentos = await this.request(`/fechamentos?estabelecimentoId=${estabelecimentoId}`);
+    return fechamentos || [];
   }
 
   async saveFechamento(fechamento) {
-    return this.execute('fechamentos', 'readwrite', (store) => store.put(fechamento));
+    const estabelecimentoId = this.getEstabelecimentoId();
+    if (!estabelecimentoId) return null;
+
+    fechamento.estabelecimentoId = estabelecimentoId;
+    const result = await this.request('/fechamentos', 'POST', fechamento);
+    return result;
   }
 
-  async fazerBackup() {
-    const dados = {
-      produtos: await this.getAllProdutos(),
-      pedidos: await this.getAllPedidos(),
-      comandas: await this.getAllComandas(),
-      movimentacoes: await this.getAllMovimentacoes(),
-      configuracoes: await this.getConfiguracao('estabelecimento'),
-      dataBackup: new Date().toISOString()
-    };
+  // ==========================================
+  // USUÁRIOS (para o multi-tenant)
+  // ==========================================
 
-    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+  async getAllUsuarios() {
+    const usuarios = await this.request('/usuarios');
+    return usuarios || [];
+  }
+
+  async saveUsuario(usuario) {
+    const existentes = await this.getAllUsuarios();
+    const existente = existentes.find(u => u.id === usuario.id);
+
+    if (existente) {
+      await this.request(`/usuarios/${usuario.id}`, 'PUT', usuario);
+    } else {
+      await this.request('/usuarios', 'POST', usuario);
+    }
     
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `backup-adegapdv-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
+    return usuario;
+  }
+
+  async deleteUsuario(id) {
+    await this.request(`/usuarios/${id}`, 'DELETE');
+  }
+
+  // ==========================================
+  // ESTABELECIMENTOS
+  // ==========================================
+
+  async getAllEstabelecimentos() {
+    const estabelecimentos = await this.request('/estabelecimentos');
+    return estabelecimentos || [];
+  }
+
+  async saveEstabelecimento(estabelecimento) {
+    const existentes = await this.getAllEstabelecimentos();
+    const existente = existentes.find(e => e.id === estabelecimento.id);
+
+    if (existente) {
+      await this.request(`/estabelecimentos/${estabelecimento.id}`, 'PUT', estabelecimento);
+    } else {
+      await this.request('/estabelecimentos', 'POST', estabelecimento);
+    }
     
-    URL.revokeObjectURL(url);
+    return estabelecimento;
+  }
+
+  // ==========================================
+  // BACKUP
+  // ==========================================
+
+  async fazerBackup() {
+    alert('📦 Seus dados já estão salvos na nuvem!\n\nNão precisa fazer backup manual.');
+    console.log('✅ Dados já estão no servidor!');
+  }
+
+  // ==========================================
+  // UTILITÁRIOS
+  // ==========================================
+
+  getEstabelecimentoId() {
+    const sessao = localStorage.getItem('mt_sessao_atual');
+    if (!sessao) return null;
+    
+    const sessaoObj = JSON.parse(sessao);
+    if (sessaoObj.isSuperAdmin) return null;
+    
+    return sessaoObj.estabelecimentoId;
   }
 }
 
+// Instância global
 const db = new Database();
 
-db.init().then(() => {
-  console.log('📦 Banco de dados pronto para uso');
-});
-
 window.db = db;
-console.log('✅ db.js carregado com sucesso!');
+
+console.log('✅ db.js (JSON Server) carregado com sucesso!');
