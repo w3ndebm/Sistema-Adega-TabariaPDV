@@ -1,0 +1,499 @@
+/* ==========================================
+   ESTILOS GLOBAIS
+   ========================================== */
+
+/* Remove scrollbar padrão */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2d3748;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4a5568;
+}
+
+/* ==========================================
+   SUPER ADMIN MODE - ESCONDE PDV
+   ========================================== */
+
+/* Oculta o conteúdo do PDV para Super Admin */
+.super-admin-mode #aba-pdv,
+.super-admin-mode #aba-comandas,
+.super-admin-mode #aba-estoque,
+.super-admin-mode #aba-pedidos,
+.super-admin-mode #aba-gerencia,
+.super-admin-mode .grid-cols-1.lg\:grid-cols-4,
+.super-admin-mode .bg-gray-800\/80,
+.super-admin-mode #grid-produtos,
+.super-admin-mode .lg\:col-span-3,
+.super-admin-mode .xl\:col-span-4 {
+  display: none !important;
+}
+
+/* Garante que o modal do Painel Admin apareça */
+.super-admin-mode #modal-painel-admin {
+  display: flex !important;
+}
+
+/* ==========================================
+   ANIMAÇÕES
+   ========================================== */
+
+/* Pulse animation para alertas */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Fade in para modais */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.fixed.inset-0.bg-black\/80,
+.fixed.inset-0.bg-black\/90 {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ==========================================
+   BOTÕES E INTERAÇÕES
+   ========================================== */
+
+/* Hover suave para botões */
+button {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Efeito de brilho nos botões principais */
+button.bg-emerald-600:hover,
+button.bg-amber-600:hover {
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.3);
+}
+
+button.bg-purple-900\/40:hover {
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.2);
+}
+
+/* ==========================================
+   TABELAS
+   ========================================== */
+
+/* Zebra striping nas tabelas */
+#admin-lista-estabelecimentos tr:nth-child(even),
+#admin-lista-usuarios tr:nth-child(even) {
+  background-color: rgba(31, 41, 55, 0.3);
+}
+
+/* Hover nas linhas da tabela */
+#admin-lista-estabelecimentos tr:hover,
+#admin-lista-usuarios tr:hover {
+  background-color: rgba(55, 65, 81, 0.5);
+}
+
+/* ==========================================
+   CARDS E PAINÉIS
+   ========================================== */
+
+/* Cards com borda gradiente */
+.card-gradient {
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+}
+
+/* ==========================================
+   INPUTS E FORMULÁRIOS
+   ========================================== */
+
+/* Estilo consistente para inputs */
+input, select {
+  transition: all 0.2s ease-in-out;
+}
+
+input:focus, select:focus {
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.2);
+}
+
+/* ==========================================
+   SCROLLBAR PARA TABELAS
+   ========================================== */
+
+.max-h-60::-webkit-scrollbar,
+.max-h-80::-webkit-scrollbar,
+.max-h-48::-webkit-scrollbar {
+  width: 4px;
+}
+
+.max-h-60::-webkit-scrollbar-track,
+.max-h-80::-webkit-scrollbar-track,
+.max-h-48::-webkit-scrollbar-track {
+  background: #1a1a2e;
+}
+
+.max-h-60::-webkit-scrollbar-thumb,
+.max-h-80::-webkit-scrollbar-thumb,
+.max-h-48::-webkit-scrollbar-thumb {
+  background: #4a5568;
+  border-radius: 10px;
+}
+
+/* ==========================================
+   RESPONSIVIDADE
+   ========================================== */
+
+/* Tablets e dispositivos médios */
+@media (max-width: 768px) {
+  .super-admin-mode #modal-painel-admin {
+    padding: 0.5rem;
+  }
+  
+  #modal-painel-admin .max-w-5xl {
+    max-width: 100%;
+    margin: 0.5rem;
+  }
+  
+  /* Ajuste das tabelas em mobile */
+  #admin-lista-estabelecimentos td,
+  #admin-lista-usuarios td {
+    font-size: 10px;
+    padding: 4px 6px;
+  }
+  
+  #admin-lista-estabelecimentos th,
+  #admin-lista-usuarios th {
+    font-size: 9px;
+    padding: 4px 6px;
+  }
+}
+
+/* Mobile pequeno */
+@media (max-width: 480px) {
+  .super-admin-mode #modal-painel-admin .grid-cols-1.sm\:grid-cols-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  /* Botões de ação em mobile */
+  .super-admin-mode #modal-painel-admin .flex.flex-wrap.gap-2 {
+    gap: 4px;
+  }
+  
+  .super-admin-mode #modal-painel-admin .flex.flex-wrap.gap-2 button {
+    font-size: 9px;
+    padding: 4px 8px;
+  }
+}
+
+/* ==========================================
+   ESTILOS PARA O PAINEL ADMIN
+   ========================================== */
+
+/* Badge de status */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.status-badge.active {
+  background-color: rgba(6, 78, 59, 0.8);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.status-badge.inactive {
+  background-color: rgba(127, 29, 29, 0.8);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+
+/* Cargo badges */
+.cargo-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.cargo-badge.super-admin {
+  color: #c084fc;
+}
+.cargo-badge.admin {
+  color: #fbbf24;
+}
+.cargo-badge.gerente {
+  color: #60a5fa;
+}
+.cargo-badge.caixa {
+  color: #9ca3af;
+}
+
+/* Plano badges */
+.plano-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.plano-badge.enterprise {
+  background-color: rgba(88, 28, 135, 0.8);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.plano-badge.premium {
+  background-color: rgba(120, 53, 15, 0.8);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.plano-badge.basico {
+  background-color: rgba(31, 41, 55, 0.8);
+  color: #9ca3af;
+  border: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+/* ==========================================
+   MODO NOTURNO (JÁ INCLUÍDO PELO TAILWIND)
+   ========================================== */
+
+/* Estilos extras para o modo escuro */
+.bg-gray-900 {
+  background-color: #0f172a;
+}
+
+.bg-gray-800 {
+  background-color: #1e293b;
+}
+
+.bg-gray-700 {
+  background-color: #334155;
+}
+
+.border-gray-700 {
+  border-color: #334155;
+}
+
+/* ==========================================
+   UTILITÁRIOS ADICIONAIS
+   ========================================== */
+
+/* Texto com quebra de linha */
+.break-all {
+  word-break: break-all;
+}
+
+/* Ocultar elemento mas manter no DOM */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================
+   TRANSITIONS
+   ========================================== */
+
+.fade-transition {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+/* ==========================================
+   MODAL OVERLAY
+   ========================================== */
+
+.modal-overlay {
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* ==========================================
+   CARD ESTATÍSTICAS DO PAINEL ADMIN
+   ========================================== */
+
+.stat-card {
+  background: linear-gradient(145deg, #1e293b, #0f172a);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.stat-card .stat-number {
+  font-size: 2rem;
+  font-weight: 900;
+  font-family: monospace;
+}
+
+.stat-card .stat-label {
+  font-size: 10px;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+
+.stat-card .stat-number.green {
+  color: #34d399;
+}
+.stat-card .stat-number.amber {
+  color: #fbbf24;
+}
+.stat-card .stat-number.blue {
+  color: #60a5fa;
+}
+.stat-card .stat-number.purple {
+  color: #c084fc;
+}
+
+/* Garante que o modal do Admin SEMPRE apareça, mesmo se o sistema estiver oculto */
+#modal-painel-admin {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+/* Força o modal a abrir quando o Super Admin logar */
+#modal-painel-admin {
+  display: none; /* Começa escondido */
+  position: fixed !important;
+  z-index: 99999 !important;
+}
+
+/* Quando o JavaScript chamar, ele adiciona essa classe ou muda o display */
+body.super-admin-mode #modal-painel-admin {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ==========================================
+   ESTILOS PARA O PAINEL DO SUPER ADMIN
+   ========================================== */
+
+/* Remover rolagem padrão */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1a1a2e;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #2d3748;
+  border-radius: 10px;
+}
+
+/* GARANTIA MÁXIMA: Força o painel do Admin a aparecer na tela */
+#modal-painel-admin {
+  display: none;
+  position: fixed !important;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.9) !important;
+  z-index: 99999 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 20px;
+}
+
+/* Quando o painel for aberto via JS, essa classe força a exibição */
+#modal-painel-admin.aberto {
+  display: flex !important;
+}
+
+/* Estilo do card principal dentro do painel */
+#modal-painel-admin > div {
+  max-height: 90vh;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 1024px;
+  background-color: #1e293b;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* Tabelas dentro do painel */
+#admin-lista-estabelecimentos,
+#admin-lista-usuarios {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  color: #d1d5db;
+}
+
+#admin-lista-estabelecimentos th,
+#admin-lista-usuarios th {
+  background-color: #1f2937;
+  color: #9ca3af;
+  text-transform: uppercase;
+  font-size: 10px;
+  padding: 8px;
+  text-align: left;
+}
+
+#admin-lista-estabelecimentos td,
+#admin-lista-usuarios td {
+  padding: 8px;
+  border-bottom: 1px solid #374151;
+}
+
+#admin-lista-estabelecimentos tr:hover,
+#admin-lista-usuarios tr:hover {
+  background-color: rgba(55, 65, 81, 0.3);
+}
+
+/* Botões dentro do painel */
+#modal-painel-admin button {
+  transition: all 0.2s;
+}

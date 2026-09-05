@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema Adega & Tabacaria - PDV</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- CSS PERSONALIZADO -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+
+  <!-- ========================================== -->
+  <!-- TELA DE LOGIN MULTI-TENANT -->
+  <!-- ========================================== -->
+  <div id="tela-login" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
+      <div class="text-center">
+        <h1 class="text-2xl font-black text-white">Adega & Tabacaria <span class="text-emerald-400">PDV</span></h1>
+        <p class="text-xs text-gray-400 mt-1">Sistema Multi-Tenant - Informe suas credenciais</p>
+      </div>
+
+      <form id="form-login" onsubmit="realizarLoginMulti(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email</label>
+          <input type="email" id="login-email" required placeholder="seu@email.com" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha</label>
+          <input type="password" id="login-senha-multi" required placeholder="••••••••" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
+          🚀 Entrar no Sistema
+        </button>
+      </form>
+
+      <div class="bg-gray-900 p-3 rounded-lg border border-gray-700/50 text-[11px] text-gray-400">
+        <p class="font-bold text-emerald-400">📌 Sistema Multi-Tenant</p>
+        <p class="text-gray-400 mt-1">Entre com suas credenciais fornecidas pelo administrador.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- SISTEMA PRINCIPAL -->
+  <!-- ========================================== -->
+  <div id="sistema-principal" class="hidden p-4 md:p-6">
+    <header class="w-full flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 border-b border-gray-800 pb-4 px-2">
+      <div>
+        <h1 class="text-2xl font-extrabold text-white tracking-wide">Adega & Tabacaria <span class="text-emerald-400">PDV</span></h1>
+        <p class="text-xs text-gray-400">
+          🏢 <span id="estabelecimento-nome" class="font-bold text-amber-400">Carregando...</span> | 
+          Operador: <span id="nome-usuario-logado" class="font-bold text-white"></span> 
+          (<span id="cargo-usuario-logado" class="text-emerald-400 font-semibold uppercase"></span>)
+        </p>
+      </div>
+
+      <nav class="flex flex-wrap items-center gap-2 bg-gray-800 p-1.5 rounded-lg border border-gray-700" id="nav-principal">
+        <button onclick="mudarAba('pdv')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors" id="btn-pdv">Frente de Caixa</button>
+        <button onclick="mudarAba('comandas')" class="px-4 py-2 rounded text-xs font-bold text-amber-400 hover:bg-gray-700 transition-colors flex items-center gap-1" id="btn-comandas">🍹 Comandas / Mesas <span id="badge-comandas" class="bg-amber-500 text-gray-950 font-black px-1.5 py-0.5 rounded-full text-[10px]">0</span></button>
+        <button onclick="mudarAba('estoque')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors" id="btn-estoque">Estoque</button>
+        <button id="btn-aba-gerencia" onclick="mudarAba('gerencia')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors hidden">Dashboard / Lucros</button>
+        <button onclick="mudarAba('pedidos')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors" id="btn-pedidos">Histórico Pedidos</button>
+        <button onclick="abrirModalConfiguracoes()" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-xs font-bold transition-colors flex items-center gap-1" id="btn-configurar">⚙️ Configurar</button>
+        
+        <!-- BOTÃO ADMIN - SEMPRE VISÍVEL PARA SUPER ADMIN -->
+        <button onclick="abrirPainelAdmin()" class="px-3 py-2 bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 rounded text-xs font-bold transition-colors flex items-center gap-1" id="btn-admin">
+          👑 Admin
+        </button>
+        
+        <button onclick="logoutMulti()" class="px-3 py-2 bg-red-900/40 hover:bg-red-800/60 text-red-300 rounded text-xs font-bold transition-colors ml-2" id="btn-sair">Sair</button>
+      </nav>
+    </header>
+
+    <main class="w-full px-2">
+      <!-- ABA PDV -->
+      <div id="aba-pdv" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-800/80 p-3 rounded-xl border border-gray-700/80">
+          <div class="bg-gray-900/90 p-3 rounded-lg border border-gray-700/60 flex justify-between items-center">
+            <div>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">🪑 Mesas Físicas</p>
+              <p id="info-mesas-disponiveis" class="text-sm font-extrabold text-white mt-0.5">--</p>
+            </div>
+            <span id="badge-status-mesas" class="text-[10px] font-black px-2 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">LIVRE</span>
+          </div>
+          <div class="bg-gray-900/90 p-3 rounded-lg border border-gray-700/60 flex justify-between items-center">
+            <div>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">📋 Comandas Físicas</p>
+              <p id="info-comandas-disponiveis" class="text-sm font-extrabold text-white mt-0.5">--</p>
+            </div>
+            <span id="badge-status-comandas" class="text-[10px] font-black px-2 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">LIVRE</span>
+          </div>
+          <div class="bg-gray-900/90 p-3 rounded-lg border border-gray-700/60 flex justify-between items-center">
+            <div>
+              <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">💨 Narguilés do Estabelecimento</p>
+              <p id="info-narguiles-disponiveis" class="text-sm font-extrabold text-white mt-0.5">--</p>
+            </div>
+            <span id="badge-status-narguiles" class="text-[10px] font-black px-2 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">LIVRE</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+          <div class="lg:col-span-3 xl:col-span-4 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl space-y-4">
+            <div class="flex flex-wrap justify-between items-center gap-2">
+              <h2 class="text-xl font-bold text-emerald-400">Produtos Disponíveis</h2>
+              <div class="flex gap-2">
+                <button onclick="abrirModalMontarCombo()" class="bg-amber-600 hover:bg-amber-500 text-white text-xs px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-1 shadow-lg shadow-amber-900/30">⚡ Montar Combo</button>
+                <button onclick="abrirModalProduto()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded-lg font-bold transition-all">+ Cadastrar Produto</button>
+              </div>
+            </div>
+
+            <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-gray-700/50">
+              <button data-categoria="Todos" onclick="filtrarCategoria('Todos')" class="btn-filtro bg-emerald-600 text-white border border-emerald-500 font-bold px-4 py-2 rounded-lg text-xs transition-all">Todos</button>
+              <button data-categoria="Bebidas" onclick="filtrarCategoria('Bebidas')" class="btn-filtro bg-gray-900 text-gray-300 hover:bg-gray-700 border border-gray-700 font-bold px-4 py-2 rounded-lg text-xs transition-all">Bebidas</button>
+              <button data-categoria="Energéticos/Sucos" onclick="filtrarCategoria('Energéticos/Sucos')" class="btn-filtro bg-gray-900 text-gray-300 hover:bg-gray-700 border border-gray-700 font-bold px-4 py-2 rounded-lg text-xs transition-all">Energéticos/Sucos</button>
+              <button data-categoria="Gelo/Acompanhamentos" onclick="filtrarCategoria('Gelo/Acompanhamentos')" class="btn-filtro bg-gray-900 text-gray-300 hover:bg-gray-700 border border-gray-700 font-bold px-4 py-2 rounded-lg text-xs transition-all">Gelo/Acompanhamentos</button>
+              <button data-categoria="Essências" onclick="filtrarCategoria('Essências')" class="btn-filtro bg-gray-900 text-gray-300 hover:bg-gray-700 border border-gray-700 font-bold px-4 py-2 rounded-lg text-xs transition-all">Essências</button>
+              <button data-categoria="Cigarros" onclick="filtrarCategoria('Cigarros')" class="btn-filtro bg-gray-900 text-gray-300 hover:bg-gray-700 border border-gray-700 font-bold px-4 py-2 rounded-lg text-xs transition-all">Cigarros</button>
+            </div>
+
+            <div id="grid-produtos" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4"></div>
+          </div>
+
+          <div class="lg:col-span-1 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-xl flex flex-col justify-between h-fit sticky top-6">
+            <div>
+              <div class="flex justify-between items-center mb-3">
+                <h2 class="text-xl font-bold text-emerald-400">Carrinho</h2>
+                <button onclick="abrirModalNovaComanda()" class="text-xs bg-amber-600 hover:bg-amber-500 text-white font-bold px-2.5 py-1 rounded transition-colors">↗ Lançar Comanda</button>
+              </div>
+
+              <div class="bg-gray-900 p-2 rounded-lg border border-gray-700/80 mb-3 space-y-1">
+                <label class="block text-[11px] font-bold text-gray-400 uppercase">Tipo de Consumo:</label>
+                <select id="tipo-consumo" class="w-full bg-gray-800 border border-gray-700 p-2 rounded text-xs text-white font-bold focus:outline-none focus:border-emerald-500">
+                  <option value="VIAGEM">🛍️ Para Viagem</option>
+                  <option value="LOCAL">🍹 Consumo no Local</option>
+                </select>
+              </div>
+
+              <div id="lista-carrinho" class="space-y-2 mb-4 max-h-[300px] overflow-y-auto pr-1"></div>
+            </div>
+
+            <div class="border-t border-gray-700 pt-4 space-y-3">
+              <div class="flex justify-between items-center text-lg font-bold">
+                <span>Total:</span>
+                <span id="total-valor" class="text-emerald-400 text-3xl font-mono font-extrabold">R$ 0,00</span>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Status do Pagamento:</label>
+                <select id="status-pagamento" onchange="alternarCamposPagamento()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500">
+                  <option value="PAGO">Pago</option>
+                  <option value="PENDENTE">Pendente / Fiado</option>
+                </select>
+              </div>
+
+              <div id="box-forma-pagamento">
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Forma de Pagamento:</label>
+                <select id="forma-pagamento" onchange="calcularTroco()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded-lg text-white text-sm focus:outline-none focus:border-emerald-500">
+                  <option value="DINHEIRO">Dinheiro</option>
+                  <option value="PIX">Pix</option>
+                  <option value="CARTAO">Cartão</option>
+                </select>
+              </div>
+
+              <div id="box-troco" class="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-2">
+                <div>
+                  <label class="block text-xs font-semibold text-emerald-400 mb-1">Valor Recebido (R$):</label>
+                  <input type="number" id="valor-recebido" placeholder="0.00" oninput="calcularTroco()" class="w-full bg-gray-800 border border-gray-700 p-2 rounded text-lg font-bold text-white font-mono focus:outline-none focus:border-emerald-500">
+                </div>
+                <div class="flex justify-between items-center pt-2 border-t border-gray-800">
+                  <span class="text-xs font-semibold text-gray-300">Troco a Devolver:</span>
+                  <span id="valor-troco" class="text-base font-extrabold font-mono text-emerald-400">R$ 0,00</span>
+                </div>
+              </div>
+
+              <div class="flex gap-2">
+                <button onclick="abrirModalMovimentacao('SANGRIA')" class="flex-1 bg-red-900/40 border border-red-700 hover:bg-red-800 text-red-200 px-2 py-2 rounded text-[10px] font-bold">🔻 Sangria</button>
+                <button onclick="abrirModalMovimentacao('SUPRIMENTO')" class="flex-1 bg-blue-900/40 border border-blue-700 hover:bg-blue-800 text-blue-200 px-2 py-2 rounded text-[10px] font-bold">🔹 Suprimento</button>
+                <button onclick="abrirModalFechamentoCego()" class="flex-1 bg-amber-900/40 border border-amber-700 hover:bg-amber-800 text-amber-200 px-2 py-2 rounded text-[10px] font-bold">🔒 Fechar</button>
+              </div>
+
+              <button onclick="concluirPedido()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white py-3.5 rounded-lg font-bold text-base transition-colors shadow-lg shadow-emerald-900/40">Concluir Pedido</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA COMANDAS -->
+      <div id="aba-comandas" class="hidden space-y-6">
+        <div class="flex justify-between items-center bg-gray-800 p-6 rounded-xl border border-gray-700">
+          <div>
+            <h2 class="text-2xl font-black text-amber-400">Gerenciador de Comandas / Mesas</h2>
+            <p class="text-xs text-gray-400">Controle de consumo local, narguilé e troca de carvão</p>
+          </div>
+          <button onclick="abrirModalNovaComanda()" class="bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-colors">+ Abrir Nova Comanda</button>
+        </div>
+        <div id="grid-comandas" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+      </div>
+
+      <!-- ABA ESTOQUE -->
+      <div id="aba-estoque" class="hidden bg-gray-800 p-6 rounded-xl border border-gray-700 space-y-4">
+        <div class="flex justify-between items-center">
+          <h2 class="text-xl font-bold text-white">Controle de Estoque</h2>
+          <button onclick="abrirModalProduto()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-4 py-2 rounded-lg font-bold">+ Cadastrar Produto</button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-gray-300">
+            <thead class="bg-gray-900 text-xs uppercase text-gray-400">
+              <tr>
+                <th class="p-3">Produto</th>
+                <th class="p-3">Categoria</th>
+                <th class="p-3">Custo Unit.</th>
+                <th class="p-3">Venda Unit.</th>
+                <th class="p-3">Estoque</th>
+                <th class="p-3 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-estoque"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ABA GERÊNCIA -->
+      <div id="aba-gerencia" class="hidden space-y-6">
+        <div class="flex flex-wrap justify-between items-center gap-4 bg-gray-900 p-3 rounded-xl border border-gray-700">
+          <div class="flex bg-gray-800 p-1 rounded-lg border border-gray-700">
+            <button onclick="filtrarPeriodoGerencia('hoje')" id="btn-periodo-hoje" class="btn-periodo px-3 py-1.5 rounded text-xs font-bold text-gray-300 hover:text-white">Hoje</button>
+            <button onclick="filtrarPeriodoGerencia('semana')" id="btn-periodo-semana" class="btn-periodo px-3 py-1.5 rounded text-xs font-bold text-gray-300 hover:text-white">Semana</button>
+            <button onclick="filtrarPeriodoGerencia('mes')" id="btn-periodo-mes" class="btn-periodo px-3 py-1.5 rounded text-xs font-bold text-gray-300 hover:text-white">Mês Atual</button>
+            <button onclick="filtrarPeriodoGerencia('ano')" id="btn-periodo-ano" class="btn-periodo px-3 py-1.5 rounded text-xs font-bold text-gray-300 hover:text-white">Ano Atual</button>
+            <button onclick="filtrarPeriodoGerencia('todos')" id="btn-periodo-todos" class="btn-periodo px-3 py-1.5 rounded text-xs font-bold bg-amber-600 text-white">Tudo</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center gap-1">
+              <label class="text-[11px] text-gray-400 font-bold">De:</label>
+              <input type="date" id="filtro-data-inicio" onchange="aplicarFiltroDataPersonalizada()" class="bg-gray-800 border border-gray-700 text-white text-xs rounded p-1.5 focus:outline-none focus:border-amber-500">
+            </div>
+            <div class="flex items-center gap-1">
+              <label class="text-[11px] text-gray-400 font-bold">Até:</label>
+              <input type="date" id="filtro-data-fim" onchange="aplicarFiltroDataPersonalizada()" class="bg-gray-800 border border-gray-700 text-white text-xs rounded p-1.5 focus:outline-none focus:border-amber-500">
+            </div>
+            <button onclick="limparFiltroData()" class="bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-bold px-2.5 py-1.5 rounded">Limpar</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+          <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+            <span class="text-[11px] font-bold text-gray-400 uppercase">Faturamento Bruto</span>
+            <p id="metrica-faturamento" class="text-2xl font-black font-mono text-emerald-400 mt-1">R$ 0,00</p>
+          </div>
+          <div class="bg-gray-900 p-4 rounded-xl border border-emerald-500/30">
+            <span class="text-[11px] font-bold text-emerald-400 uppercase">Lucro Líquido Real</span>
+            <p id="metrica-lucro" class="text-2xl font-black font-mono text-emerald-400 mt-1">R$ 0,00</p>
+          </div>
+          <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+            <span class="text-[11px] font-bold text-gray-400 uppercase">Itens Vendidos</span>
+            <p id="metrica-itens-vendidos" class="text-2xl font-black font-mono text-white mt-1">0 un</p>
+          </div>
+          <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+            <span class="text-[11px] font-bold text-gray-400 uppercase">Valor em Estoque (Custo)</span>
+            <p id="metrica-valor-estoque" class="text-2xl font-black font-mono text-amber-400 mt-1">R$ 0,00</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+              <div>
+                <h3 class="font-bold text-white text-base">🛡️ Auditar Fechamento de Caixa</h3>
+                <p class="text-xs text-gray-400">Validação entre a contagem do caixa cego, sangrias e suprimentos</p>
+              </div>
+            </div>
+            <div id="painel-auditoria-caixa" class="bg-gray-900 p-4 rounded-xl border border-gray-700 space-y-3"></div>
+            <div>
+              <h4 class="text-xs font-bold text-gray-400 uppercase mb-2">Movimentações Avulsas (Sangrias / Suprimentos)</h4>
+              <div id="lista-movimentacoes-gerencia" class="space-y-2 max-h-48 overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+
+          <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 space-y-4">
+            <h3 class="font-bold text-white text-base">⚠️ Alertas de Estoque Crítico</h3>
+            <div id="lista-estoque-critico" class="space-y-2 max-h-80 overflow-y-auto"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ABA HISTÓRICO -->
+      <div id="aba-pedidos" class="hidden bg-gray-800 p-6 rounded-xl border border-gray-700 space-y-4">
+        <h2 class="text-xl font-bold text-white">Histórico de Pedidos</h2>
+        <div id="lista-pedidos-historico" class="space-y-3"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAIS -->
+  <!-- ========================================== -->
+
+  <!-- MODAL: NOVA COMANDA -->
+  <div id="modal-nova-comanda" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+      <h3 class="font-bold text-white text-lg">🍹 Nova Comanda / Mesa</h3>
+      <form onsubmit="confirmarCriarComanda(event)" class="space-y-3">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Nº da Comanda *</label>
+            <input type="number" id="comanda-numero" required min="1" placeholder="Ex: 01" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-bold focus:outline-none focus:border-amber-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Nº da Mesa (Opcional)</label>
+            <input type="number" id="comanda-mesa" min="1" placeholder="Ex: 02" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-bold focus:outline-none focus:border-amber-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Cliente / Obs (Opcional)</label>
+          <input type="text" id="comanda-cliente" placeholder="Ex: Lucas / Aniversário" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500">
+        </div>
+        <div class="flex items-center gap-2 pt-2 border-t border-gray-700">
+          <input type="checkbox" id="comanda-tem-narguile" onchange="alternarOpcoesNarguile()" class="w-4 h-4 accent-amber-500">
+          <label for="comanda-tem-narguile" class="text-xs font-bold text-amber-400 cursor-pointer">Incluir Cronômetro de Narguilé / Troca de Carvão</label>
+        </div>
+        <div id="box-tempo-carvao" class="hidden bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-2">
+          <label class="block text-xs font-semibold text-gray-400">Tempo da Sessão / Carvão (Minutos):</label>
+          <input type="number" id="comanda-minutos-carvao" value="30" min="5" max="120" class="w-full bg-gray-800 border border-gray-700 p-2 rounded text-sm text-amber-400 font-bold font-mono">
+        </div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="fecharModalNovaComanda()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+          <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">Criar Comanda</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: PRODUTO -->
+  <div id="modal-produto" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+      <h3 id="modal-titulo" class="font-bold text-white text-lg">Novo Produto</h3>
+      <form id="form-novo-produto" onsubmit="cadastrarProduto(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Produto *</label>
+          <input type="text" id="novo-nome" required placeholder="Ex: Whisky Red Label 1L" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Categoria *</label>
+          <select id="nova-categoria" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            <option value="Bebidas">Bebidas</option>
+            <option value="Energéticos/Sucos">Energéticos/Sucos</option>
+            <option value="Gelo/Acompanhamentos">Gelo/Acompanhamentos</option>
+            <option value="Essências">Essências</option>
+            <option value="Cigarros">Cigarros</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Custo Unit. (R$)</label>
+            <input type="number" step="0.01" id="novo-custo" required placeholder="0.00" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Venda Unit. (R$)</label>
+            <input type="number" step="0.01" id="novo-preco" required placeholder="0.00" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Estoque Inicial</label>
+          <input type="number" id="novo-estoque" required min="0" placeholder="0" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">URL da Imagem (Opcional)</label>
+          <input type="url" id="nova-imagem" placeholder="https://exemplo.com/imagem.jpg" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+          <button type="button" onclick="fecharModalProduto()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+          <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">Salvar Produto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: MONTAR COMBO -->
+  <div id="modal-montar-combo" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+      <h3 class="font-bold text-white text-lg">⚡ Montar Combo Personalizado</h3>
+      <form onsubmit="event.preventDefault(); confirmarAdicionarCombo();" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Garrafa / Bebida Principal *</label>
+          <select id="combo-garrafa" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Energético</label>
+          <select id="combo-energetico" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Qtd. Energético</label>
+            <input type="number" id="combo-qtd-energetico" min="0" value="1" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-amber-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-400 mb-1">Qtd. Gelo</label>
+            <input type="number" id="combo-qtd-gelo" min="0" value="1" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-amber-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Acompanhamento / Gelo</label>
+          <select id="combo-gelo" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Desconto Personalizado (R$)</label>
+          <input type="number" step="0.01" id="combo-desconto" min="0" value="0" onchange="atualizarResumoCombo()" placeholder="0.00" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-amber-500">
+        </div>
+        <div class="bg-amber-950/40 border border-amber-700/40 p-3 rounded-lg flex justify-between items-center">
+          <span class="text-xs font-bold text-amber-400 uppercase">Preço Final do Combo</span>
+          <span id="combo-preco-final" class="text-xl font-black font-mono text-emerald-400">R$ 0,00</span>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+          <button type="button" onclick="fecharModalMontarCombo()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+          <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">Adicionar Combo ao Carrinho</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: SANGRIA / SUPRIMENTO -->
+  <div id="modal-movimentacao" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+      <h3 id="titulo-modal-movimentacao" class="font-bold text-white text-lg"></h3>
+      <form onsubmit="confirmarMovimentacaoCaixa(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Valor (R$)</label>
+          <input type="number" step="0.01" id="movimentacao-valor" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-bold font-mono focus:outline-none focus:border-emerald-500">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Motivo / Observação</label>
+          <input type="text" id="movimentacao-motivo" required placeholder="Ex: Pagamento fornecedor de gelo" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="fecharModalMovimentacao()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+          <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white">Confirmar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: FECHAMENTO CEGO -->
+  <div id="modal-fechamento-cego" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+      <h3 class="font-bold text-white text-lg">🔒 Fechamento de Turno (Caixa Cego)</h3>
+      <p class="text-xs text-gray-400">Insira os valores em dinheiro físico contados no gaveteiro ao finalizar o expediente.</p>
+      <form onsubmit="processarFechamentoCego(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Total Contado em Dinheiro Físico (R$)</label>
+          <input type="number" step="0.01" id="fechamento-dinheiro-contado" required placeholder="0,00" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-bold font-mono focus:outline-none focus:border-amber-500">
+        </div>
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="fecharModalFechamentoCego()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+          <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white">Enviar Fechamento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: CONFIGURAÇÕES -->
+  <div id="modal-configuracoes" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+      <h3 class="font-bold text-white text-lg">⚙️ Configurações do Estabelecimento</h3>
+      <p class="text-xs text-gray-400">Defina a capacidade total de mesas e comandas físicas do seu estabelecimento.</p>
+      <form id="form-configuracoes" onsubmit="salvarConfiguracoes(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">🪑 Total de Mesas Físicas</label>
+          <input type="number" id="config-total-mesas" required min="0" max="999" placeholder="Ex: 10" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-bold font-mono focus:outline-none focus:border-amber-500">
+          <p class="text-[10px] text-gray-500 mt-1">Quantas mesas o estabelecimento possui para consumo local.</p>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">📋 Total de Comandas (Fichas de Papel)</label>
+          <input type="number" id="config-total-comandas" required min="0" max="999" placeholder="Ex: 30" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-bold font-mono focus:outline-none focus:border-amber-500">
+          <p class="text-[10px] text-gray-500 mt-1">Quantas comandas físicas o estabelecimento possui.</p>
+        </div>
+        <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
+          <p class="text-[10px] text-gray-400">📊 Status Atual:</p>
+          <div class="flex justify-between text-xs mt-1">
+            <span class="text-gray-300">Mesas: <strong id="config-status-mesas" class="text-emerald-400">0</strong></span>
+            <span class="text-gray-300">Comandas: <strong id="config-status-comandas" class="text-emerald-400">0</strong></span>
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+          <button type="button" onclick="fecharModalConfiguracoes()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+          <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">Salvar Configurações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: PAINEL DE ADMINISTRAÇÃO (SUPER ADMIN) -->
+  <!-- ========================================== -->
+  <!-- CORRIGIDO: Removida a classe 'hidden' daqui -->
+  <div id="modal-painel-admin" class="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[200]" style="display: none;">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-5xl space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      
+      <!-- CABEÇALHO -->
+      <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+        <h3 class="font-bold text-white text-2xl flex items-center gap-2">
+          <span class="text-3xl">👑</span> Painel de Administração
+        </h3>
+        <button onclick="fecharPainelAdmin()" class="text-gray-400 hover:text-white text-3xl font-bold">×</button>
+      </div>
+      
+      <p class="text-xs text-gray-400">Gerencie estabelecimentos e usuários do sistema.</p>
+      
+      <!-- BOTÕES DE AÇÃO -->
+      <div class="flex flex-wrap gap-2 border-b border-gray-700 pb-3">
+        <button onclick="tenantManager.abrirModalNovoEstabelecimento()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+          🏢 + Novo Estabelecimento
+        </button>
+        <button onclick="tenantManager.abrirModalNovoUsuario()" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+          👤 + Novo Usuário
+        </button>
+        <button onclick="atualizarPainelAdmin()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+          🔄 Atualizar
+        </button>
+      </div>
+
+      <!-- ESTATÍSTICAS -->
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-emerald-400" id="admin-total-estabelecimentos">0</p>
+          <p class="text-[10px] text-gray-400">Estabelecimentos</p>
+        </div>
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-amber-400" id="admin-total-usuarios">0</p>
+          <p class="text-[10px] text-gray-400">Usuários</p>
+        </div>
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-blue-400" id="admin-total-ativos">0</p>
+          <p class="text-[10px] text-gray-400">Ativos</p>
+        </div>
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-purple-400" id="admin-total-premium">0</p>
+          <p class="text-[10px] text-gray-400">Premium</p>
+        </div>
+      </div>
+
+      <!-- TABELA DE ESTABELECIMENTOS -->
+      <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+        <h4 class="font-bold text-white text-sm mb-3">🏢 Estabelecimentos</h4>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-800 text-gray-400 uppercase">
+              <tr>
+                <th class="p-2">ID</th>
+                <th class="p-2">Nome</th>
+                <th class="p-2">Plano</th>
+                <th class="p-2">Usuários</th>
+                <th class="p-2">Status</th>
+                <th class="p-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="admin-lista-estabelecimentos"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TABELA DE USUÁRIOS -->
+      <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+        <h4 class="font-bold text-white text-sm mb-3">👤 Usuários do Sistema</h4>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-800 text-gray-400 uppercase">
+              <tr>
+                <th class="p-2">ID</th>
+                <th class="p-2">Nome</th>
+                <th class="p-2">Email</th>
+                <th class="p-2">Cargo</th>
+                <th class="p-2">Estabelecimento</th>
+                <th class="p-2">Status</th>
+                <th class="p-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="admin-lista-usuarios"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- BOTÃO FECHAR -->
+      <div class="flex justify-end pt-2 border-t border-gray-700">
+        <button onclick="fecharPainelAdmin()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg text-xs font-bold text-white transition-colors">
+          Fechar Painel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- RODAPÉ -->
+  <!-- ========================================== -->
+  <footer class="w-full border-t border-gray-800 mt-8 pt-4 pb-2 px-4">
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-2 text-[11px] text-gray-500">
+      <div>
+        <span class="font-semibold text-gray-400">© 2026 Adega & Tabacaria PDV</span>
+        <span class="mx-2 text-gray-700">|</span>
+        <span>Todos os direitos reservados.</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="abrirModalSobre()" class="hover:text-emerald-400 transition-colors text-gray-500 hover:underline">📄 Sobre</button>
+        <span class="text-gray-700">|</span>
+        <button onclick="db.fazerBackup()" class="hover:text-emerald-400 transition-colors text-gray-500 hover:underline">💾 Backup</button>
+        <span class="text-gray-700">|</span>
+        <span class="text-gray-600">Versão 2.0</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- MODAL SOBRE -->
+  <div id="modal-sobre" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-[60]">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+        <h3 class="font-bold text-white text-lg flex items-center gap-2">📄 Sobre o Sistema</h3>
+        <button onclick="fecharModalSobre()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
+      </div>
+      <div class="text-center py-3">
+        <div class="inline-block bg-gray-900 p-4 rounded-2xl border border-gray-700">
+          <span class="text-3xl font-black text-white">Adega & Tabacaria <span class="text-emerald-400">PDV</span></span>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Sistema de Ponto de Venda Multi-Tenant</p>
+      </div>
+      <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700/50 space-y-2">
+        <h4 class="font-bold text-emerald-400 text-sm flex items-center gap-2">© Direitos Autorais</h4>
+        <p class="text-xs text-gray-300 leading-relaxed">Sistema desenvolvido para gerenciamento de vendas, estoque, comandas e controle financeiro de estabelecimentos do ramo de bebidas e tabacaria.</p>
+        <p class="text-xs text-gray-400">© 2026 Adega & Tabacaria PDV — Todos os direitos reservados.</p>
+      </div>
+      <div class="bg-gray-900/30 p-4 rounded-lg border border-gray-700/30 space-y-2">
+        <h4 class="font-bold text-amber-400 text-sm flex items-center gap-2">🛠️ Tecnologias</h4>
+        <div class="flex flex-wrap gap-2">
+          <span class="bg-gray-800 px-2.5 py-1 rounded text-[10px] text-gray-300 border border-gray-700">HTML5</span>
+          <span class="bg-gray-800 px-2.5 py-1 rounded text-[10px] text-gray-300 border border-gray-700">Tailwind CSS</span>
+          <span class="bg-gray-800 px-2.5 py-1 rounded text-[10px] text-gray-300 border border-gray-700">JavaScript</span>
+          <span class="bg-gray-800 px-2.5 py-1 rounded text-[10px] text-gray-300 border border-gray-700">IndexedDB</span>
+        </div>
+      </div>
+      <div class="flex justify-end pt-2">
+        <button onclick="fecharModalSobre()" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-2 rounded-lg text-xs font-bold text-white transition-colors">Entendi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- SCRIPTS NA ORDEM CORRETA -->
+  <!-- ========================================== -->
+  <script src="db.js"></script>
+  <script src="multi-tenant.js"></script>
+  <script src="script.js"></script>
+
+</body>
+</html>
