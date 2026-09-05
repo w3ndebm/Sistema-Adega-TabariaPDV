@@ -1,1653 +1,1549 @@
 // ==========================================
-// CARREGAR DADOS DO INDEXEDDB
+// MULTI-TENANT - SISTEMA PARA VÁRIAS ADEGAS
 // ==========================================
 
-async function carregarDadosDoDB() {
-  try {
-    // Aguardar o banco ficar pronto
-    if (!db.isReady) {
-      await new Promise(resolve => {
-        const checkReady = setInterval(() => {
-          if (db.isReady) {
-            clearInterval(checkReady);
-            resolve();
-          }
-        }, 100);
-      });
-    }
-
-    // Carregar produtos
-    const produtosDB = await db.getAllProdutos();
-    if (produtosDB && produtosDB.length > 0) {
-      produtos = produtosDB;
-    }
-
-    // Carregar pedidos
-    const pedidosDB = await db.getAllPedidos();
-    if (pedidosDB && pedidosDB.length > 0) {
-      pedidos = pedidosDB;
-    }
-
-    // Carregar comandas
-    const comandasDB = await db.getAllComandas();
-    if (comandasDB && comandasDB.length > 0) {
-      comandas = comandasDB;
-    }
-
-    // Carregar movimentações
-    const movDB = await db.getAllMovimentacoes();
-    if (movDB && movDB.length > 0) {
-      movimentacoesCaixa = movDB;
-    }
-
-    // Carregar configurações
-    const configDB = await db.getConfiguracao('estabelecimento');
-    if (configDB) {
-      CONFIG_ESTABELECIMENTO = configDB.valor;
-    }
-
-    // Carregar último fechamento
-    const fechamentos = await db.getAllFechamentos();
-    if (fechamentos && fechamentos.length > 0) {
-      ultimoFechamentoCego = fechamentos[fechamentos.length - 1];
-    }
-
-    console.log('✅ Dados carregados do IndexedDB');
-    return true;
-  } catch (error) {
-    console.error('❌ Erro ao carregar dados:', error);
-    return false;
+class MultiTenantManager {
+  constructor() {
+    this.estabelecimentoAtual = null;
+    this.usuarios = [];
+    this.estabelecimentos = [];
+    this.carregarDados();
   }
-}
 
-// Sobrescrever função salvarLocal para usar IndexedDB
-async function salvarLocal() {
-  try {
-    // Salvar produtos
-    for (const prod of produtos) {
-      await db.saveProduto(prod);
-    }
+  carregarDados() {
+    const usuariosSalvos = localStorage.getItem('mt_usuarios');
+    const estabelecimentosSalvos = localStorage.getItem('mt_estabelecimentos');
     
-    // Salvar pedidos
-    for (const ped of pedidos) {
-      await db.savePedido(ped);
-    }
-    
-    // Salvar comandas
-    for (const com of comandas) {
-      await db.saveComanda(com);
-    }
-    
-    // Salvar movimentações
-    for (const mov of movimentacoesCaixa) {
-      await db.saveMovimentacao(mov);
-    }
-    
-    // Salvar configurações
-    await db.saveConfiguracao('estabelecimento', CONFIG_ESTABELECIMENTO);
-    
-    // Salvar último fechamento
-    if (ultimoFechamentoCego) {
-      await db.saveFechamento(ultimoFechamentoCego);
-    }
-    
-    console.log('💾 Dados salvos no IndexedDB');
-  } catch (error) {
-    console.error('❌ Erro ao salvar dados:', error);
-    // Fallback para LocalStorage
-    localStorage.setItem('pdv_produtos', JSON.stringify(produtos));
-    localStorage.setItem('pdv_pedidos', JSON.stringify(pedidos));
-    localStorage.setItem('pdv_comandas', JSON.stringify(comandas));
-    localStorage.setItem('pdv_movimentacoes', JSON.stringify(movimentacoesCaixa));
-    localStorage.setItem('pdv_config_estabelecimento', JSON.stringify(CONFIG_ESTABELECIMENTO));
-    if (ultimoFechamentoCego) {
-      localStorage.setItem('pdv_ultimo_fechamento', JSON.stringify(ultimoFechamentoCego));
-    }
-  }
-}
-
-// ==========================================
-// CONFIGURAÇÃO DE CAPACIDADE DO ESTABELECIMENTO
-// ==========================================
-let CONFIG_ESTABELECIMENTO = {
-  totalMesas: 10,
-  totalComandas: 30
-};
-
-// Carregar configurações salvas
-function carregarConfiguracoes() {
-  const saved = localStorage.getItem("pdv_config_estabelecimento");
-  if (saved) {
-    const config = JSON.parse(saved);
-    CONFIG_ESTABELECIMENTO.totalMesas = config.totalMesas || 10;
-    CONFIG_ESTABELECIMENTO.totalComandas = config.totalComandas || 30;
-  }
-}
-
-// Salvar configurações
-function salvarConfiguracoesLocal() {
-  localStorage.setItem("pdv_config_estabelecimento", JSON.stringify(CONFIG_ESTABELECIMENTO));
-}
-
-// ==========================================
-// USUÁRIOS E AUTENTICAÇÃO
-// ==========================================
-const usuarios = [
-  { usuario: "caixa", senha: "123", nome: "Operador de Caixa", cargo: "caixa" },
-  { usuario: "gerente", senha: "123", nome: "Carlos Gerente", cargo: "gerente" }
-];
-
-let usuarioLogado = null;
-
-// ==========================================
-// BASE DE DADOS
-// ==========================================
-let produtos = [
-  { id: 1, nome: "Whisky Red Label 1L", categoria: "Bebidas", custo: 55.00, preco: 89.90, estoque: 10, imagem: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=150&auto=format&fit=crop&q=60" },
-  { id: 2, nome: "Whisky Jack Daniel's 1L", categoria: "Bebidas", custo: 100.00, preco: 149.90, estoque: 8, imagem: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=150&auto=format&fit=crop&q=60" },
-  { id: 3, nome: "Cerveja Heineken Long Neck 330ml", categoria: "Bebidas", custo: 4.50, preco: 8.50, estoque: 60, imagem: "https://images.unsplash.com/photo-1608270586620-248524c67de9?w=150&auto=format&fit=crop&q=60" },
-  { id: 4, nome: "Red Bull Energy Drink 250ml", categoria: "Energéticos/Sucos", custo: 6.50, preco: 12.00, estoque: 48, imagem: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=150&auto=format&fit=crop&q=60" },
-  { id: 5, nome: "Gelo de Coco Coco Leve 200ml", categoria: "Gelo/Acompanhamentos", custo: 1.50, preco: 4.00, estoque: 50, imagem: "https://images.unsplash.com/photo-1511018556340-d16986a1c194?w=150&auto=format&fit=crop&q=60" },
-  { id: 6, nome: "Essência Zomo Mint", categoria: "Essências", custo: 6.00, preco: 12.00, estoque: 25, imagem: "https://images.unsplash.com/photo-1511018556340-d16986a1c194?w=150&auto=format&fit=crop&q=60" },
-  { id: 7, nome: "Aluguel Narguilé Completo", categoria: "Essências", custo: 5.00, preco: 35.00, estoque: 8, imagem: "https://images.unsplash.com/photo-1511018556340-d16986a1c194?w=150&auto=format&fit=crop&q=60" }
-];
-
-let carrinho = [];
-let comandas = [];
-let pedidos = [];
-let totalPedido = 0;
-let categoriaAtual = "Todos";
-let produtoEmEdicaoId = null;
-let movimentacoesCaixa = [];
-let tipoMovimentacaoAtual = null;
-let ultimoFechamentoCego = null;
-let periodoGerenciaAtual = 'todos';
-
-// ==========================================
-// CARREGAR DADOS DO LOCALSTORAGE
-// ==========================================
-function carregarLocal() {
-  const p = localStorage.getItem("pdv_produtos");
-  const ped = localStorage.getItem("pdv_pedidos");
-  const com = localStorage.getItem("pdv_comandas");
-  const mov = localStorage.getItem("pdv_movimentacoes");
-  const fech = localStorage.getItem("pdv_ultimo_fechamento");
-
-  if (p) produtos = JSON.parse(p);
-  if (ped) pedidos = JSON.parse(ped);
-  if (com) comandas = JSON.parse(com);
-  if (mov) movimentacoesCaixa = JSON.parse(mov);
-  if (fech) ultimoFechamentoCego = JSON.parse(fech);
-  
-  carregarConfiguracoes();
-}
-
-function salvarLocal() {
-  localStorage.setItem("pdv_produtos", JSON.stringify(produtos));
-  localStorage.setItem("pdv_pedidos", JSON.stringify(pedidos));
-  localStorage.setItem("pdv_comandas", JSON.stringify(comandas));
-  localStorage.setItem("pdv_movimentacoes", JSON.stringify(movimentacoesCaixa));
-  if (ultimoFechamentoCego) {
-    localStorage.setItem("pdv_ultimo_fechamento", JSON.stringify(ultimoFechamentoCego));
-  }
-}
-
-// ==========================================
-// CRONÔMETRO AUTOMÁTICO DE NARGUILÉ
-// ==========================================
-setInterval(() => {
-  let mudou = false;
-  comandas.forEach(c => {
-    if (c.narguile && c.tempoRestante > 0) {
-      c.tempoRestante--;
-      mudou = true;
-    }
-  });
-  if (mudou && !document.getElementById("aba-comandas").classList.contains("hidden")) {
-    renderizarComandas();
-  }
-}, 1000);
-
-// ==========================================
-// LOGIN & NAVEGAÇÃO
-// ==========================================
-function realizarLogin(e) {
-  e.preventDefault();
-  const usuInput = document.getElementById("login-usuario").value.trim();
-  const senhaInput = document.getElementById("login-senha").value.trim();
-
-  const usuarioEncontrado = usuarios.find(u => u.usuario === usuInput && u.senha === senhaInput);
-
-  if (!usuarioEncontrado) {
-    alert("Usuário ou senha incorretos!");
-    return;
-  }
-
-  usuarioLogado = usuarioEncontrado;
-  document.getElementById("tela-login").classList.add("hidden");
-  document.getElementById("sistema-principal").classList.remove("hidden");
-
-  document.getElementById("nome-usuario-logado").innerText = usuarioLogado.nome;
-  document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
-
-  const btnGerencia = document.getElementById("btn-aba-gerencia");
-  if (usuarioLogado.cargo === "gerente") {
-    btnGerencia.classList.remove("hidden");
-  } else {
-    btnGerencia.classList.add("hidden");
-  }
-
-  renderizarProdutos();
-  renderizarCarrinho();
-  renderizarTabelaEstoque();
-  renderizarHistoricoPedidos();
-  renderizarDashboardGerencia();
-  renderizarComandas();
-  atualizarPainelDisponibilidade();
-}
-
-function logout() {
-  usuarioLogado = null;
-  document.getElementById("form-login").reset();
-  document.getElementById("sistema-principal").classList.add("hidden");
-  document.getElementById("tela-login").classList.remove("hidden");
-}
-
-function mudarAba(aba) {
-  if (aba === "gerencia" && usuarioLogado.cargo !== "gerente") {
-    alert("Acesso restrito apenas para Gerentes!");
-    return;
-  }
-
-  document.getElementById("aba-pdv").classList.add("hidden");
-  document.getElementById("aba-comandas").classList.add("hidden");
-  document.getElementById("aba-estoque").classList.add("hidden");
-  document.getElementById("aba-pedidos").classList.add("hidden");
-  document.getElementById("aba-gerencia").classList.add("hidden");
-
-  document.getElementById(`aba-${aba}`).classList.remove("hidden");
-
-  if (aba === "gerencia") renderizarDashboardGerencia();
-  if (aba === "comandas") renderizarComandas();
-  if (aba === "pdv") atualizarPainelDisponibilidade();
-}
-
-// ==========================================
-// PAINEL DE DISPONIBILIDADE EM TEMPO REAL
-// ==========================================
-function atualizarPainelDisponibilidade() {
-  // Mesas
-  const mesasOcupadas = comandas.filter(c => c.numMesa !== null && c.numMesa !== undefined).length;
-  const mesasDisponiveis = Math.max(0, CONFIG_ESTABELECIMENTO.totalMesas - mesasOcupadas);
-
-  const elMesas = document.getElementById("info-mesas-disponiveis");
-  const badgeMesas = document.getElementById("badge-status-mesas");
-  if (elMesas && badgeMesas) {
-    elMesas.innerText = `${mesasDisponiveis} livres / ${CONFIG_ESTABELECIMENTO.totalMesas} total (${mesasOcupadas} em uso)`;
-    if (mesasDisponiveis === 0) {
-      badgeMesas.innerText = "LOTADO";
-      badgeMesas.className = "text-[10px] font-black px-2 py-1 rounded bg-red-950 text-red-400 border border-red-800";
+    if (usuariosSalvos) {
+      this.usuarios = JSON.parse(usuariosSalvos);
     } else {
-      badgeMesas.innerText = "LIVRE";
-      badgeMesas.className = "text-[10px] font-black px-2 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
+      // DADOS INICIAIS
+      this.usuarios = [
+        // 👑 SUPER ADMIN (VOCÊ)
+        { 
+          id: 1, 
+          nome: "Super Admin", 
+          email: "super@admin.com", 
+          senha: "admin123", 
+          estabelecimentoId: null, 
+          cargo: "super_admin", 
+          ativo: true,
+          criadoPor: null
+        },
+        // 🏢 ADMIN DA ADEGA DO JOÃO
+        { 
+          id: 2, 
+          nome: "João Silva", 
+          email: "joao@adegaa.com", 
+          senha: "123", 
+          estabelecimentoId: 1, 
+          cargo: "admin", 
+          ativo: true,
+          criadoPor: 1
+        },
+        // 👤 CAIXA DA ADEGA DO JOÃO
+        { 
+          id: 3, 
+          nome: "Carlos Oliveira", 
+          email: "carlos@adegaa.com", 
+          senha: "123", 
+          estabelecimentoId: 1, 
+          cargo: "caixa", 
+          ativo: true,
+          criadoPor: 2
+        },
+        // 🏢 ADMIN DA TABACARIA DA MARIA
+        { 
+          id: 4, 
+          nome: "Maria Santos", 
+          email: "maria@adegab.com", 
+          senha: "123", 
+          estabelecimentoId: 2, 
+          cargo: "admin", 
+          ativo: true,
+          criadoPor: 1
+        }
+      ];
+      this.salvarUsuarios();
     }
-  }
 
-  // Comandas
-  const comandasAbertas = comandas.length;
-  const comandasDisponiveis = Math.max(0, CONFIG_ESTABELECIMENTO.totalComandas - comandasAbertas);
-
-  const elComandas = document.getElementById("info-comandas-disponiveis");
-  const badgeComandas = document.getElementById("badge-status-comandas");
-  if (elComandas && badgeComandas) {
-    elComandas.innerText = `${comandasDisponiveis} fichas livres / ${CONFIG_ESTABELECIMENTO.totalComandas} total`;
-    if (comandasDisponiveis === 0) {
-      badgeComandas.innerText = "ESGOTADO";
-      badgeComandas.className = "text-[10px] font-black px-2 py-1 rounded bg-red-950 text-red-400 border border-red-800";
+    if (estabelecimentosSalvos) {
+      this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
     } else {
-      badgeComandas.innerText = "LIVRE";
-      badgeComandas.className = "text-[10px] font-black px-2 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
+      this.estabelecimentos = [
+        {
+          id: 1,
+          nome: "Adega do João",
+          cnpj: "12.345.678/0001-90",
+          endereco: "Rua das Adegas, 123",
+          telefone: "(11) 99999-9999",
+          plano: "premium",
+          ativo: true,
+          dataCadastro: new Date().toISOString(),
+          configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" }
+        },
+        {
+          id: 2,
+          nome: "Tabacaria da Maria",
+          cnpj: "98.765.432/0001-10",
+          endereco: "Av. Tabacaria, 456",
+          telefone: "(11) 88888-8888",
+          plano: "basico",
+          ativo: true,
+          dataCadastro: new Date().toISOString(),
+          configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" }
+        }
+      ];
+      this.salvarEstabelecimentos();
     }
   }
 
-  // Narguilés
-  const prodNarguile = produtos.find(p => p.nome.toLowerCase().includes("aluguel narguilé") || p.nome.toLowerCase().includes("narguilé"));
-  const narguilesEmUso = comandas.filter(c => c.narguile).length;
-  const narguilesTotalEstoque = prodNarguile ? prodNarguile.estoque : 0;
-  const narguilesLivres = Math.max(0, narguilesTotalEstoque - narguilesEmUso);
+  salvarUsuarios() {
+    localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));
+  }
 
-  const elNarguiles = document.getElementById("info-narguiles-disponiveis");
-  const badgeNarguiles = document.getElementById("badge-status-narguiles");
-  if (elNarguiles && badgeNarguiles) {
-    elNarguiles.innerText = `${narguilesLivres} livres / ${narguilesTotalEstoque} em acervo (${narguilesEmUso} rodando)`;
-    if (narguilesLivres === 0) {
-      badgeNarguiles.innerText = "SEM ACERVO";
-      badgeNarguiles.className = "text-[10px] font-black px-2 py-1 rounded bg-red-950 text-red-400 border border-red-800";
-    } else {
-      badgeNarguiles.innerText = "DISPONÍVEL";
-      badgeNarguiles.className = "text-[10px] font-black px-2 py-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800";
+  salvarEstabelecimentos() {
+    localStorage.setItem('mt_estabelecimentos', JSON.stringify(this.estabelecimentos));
+  }
+
+  // ==========================================
+  // LOGIN
+  // ==========================================
+  login(email, senha) {
+    const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
+    
+    if (!usuario) {
+      return { success: false, message: "Email ou senha incorretos!" };
     }
-  }
-}
 
-// ==========================================
-// CONFIGURAÇÕES DO ESTABELECIMENTO
-// ==========================================
-function abrirModalConfiguracoes() {
-  document.getElementById("config-total-mesas").value = CONFIG_ESTABELECIMENTO.totalMesas;
-  document.getElementById("config-total-comandas").value = CONFIG_ESTABELECIMENTO.totalComandas;
-  atualizarStatusConfiguracoes();
-  document.getElementById("modal-configuracoes").classList.remove("hidden");
-}
-
-function fecharModalConfiguracoes() {
-  document.getElementById("modal-configuracoes").classList.add("hidden");
-}
-
-function atualizarStatusConfiguracoes() {
-  const mesasEmUso = comandas.filter(c => c.numMesa !== null && c.numMesa !== undefined).length;
-  const comandasEmUso = comandas.length;
-  document.getElementById("config-status-mesas").innerText = `${mesasEmUso} em uso / ${CONFIG_ESTABELECIMENTO.totalMesas} total`;
-  document.getElementById("config-status-comandas").innerText = `${comandasEmUso} em uso / ${CONFIG_ESTABELECIMENTO.totalComandas} total`;
-}
-
-function salvarConfiguracoes(e) {
-  e.preventDefault();
-  
-  const totalMesas = parseInt(document.getElementById("config-total-mesas").value) || 0;
-  const totalComandas = parseInt(document.getElementById("config-total-comandas").value) || 0;
-  
-  if (totalMesas < 0 || totalComandas < 0) {
-    alert("Os valores devem ser maiores ou iguais a zero!");
-    return;
-  }
-  
-  const mesasEmUso = comandas.filter(c => c.numMesa !== null && c.numMesa !== undefined).length;
-  const comandasEmUso = comandas.length;
-  
-  if (totalMesas < mesasEmUso) {
-    alert(`❌ Não é possível reduzir para ${totalMesas} mesas pois ${mesasEmUso} estão ocupadas!`);
-    return;
-  }
-  
-  if (totalComandas < comandasEmUso) {
-    alert(`❌ Não é possível reduzir para ${totalComandas} comandas pois ${comandasEmUso} estão abertas!`);
-    return;
-  }
-  
-  CONFIG_ESTABELECIMENTO.totalMesas = totalMesas;
-  CONFIG_ESTABELECIMENTO.totalComandas = totalComandas;
-  salvarConfiguracoesLocal();
-  
-  atualizarPainelDisponibilidade();
-  atualizarStatusConfiguracoes();
-  
-  alert(`✅ Configurações salvas!\n\n🪑 Mesas: ${totalMesas}\n📋 Comandas: ${totalComandas}`);
-  fecharModalConfiguracoes();
-}
-
-// ==========================================
-// COMANDAS E CONSUMO NO LOCAL
-// ==========================================
-function abrirModalNovaComanda() {
-  document.getElementById("comanda-numero").value = "";
-  document.getElementById("comanda-mesa").value = "";
-  document.getElementById("comanda-cliente").value = "";
-  document.getElementById("comanda-tem-narguile").checked = false;
-  document.getElementById("box-tempo-carvao").classList.add("hidden");
-  document.getElementById("modal-nova-comanda").classList.remove("hidden");
-}
-
-function fecharModalNovaComanda() {
-  document.getElementById("modal-nova-comanda").classList.add("hidden");
-}
-
-function alternarOpcoesNarguile() {
-  const marcado = document.getElementById("comanda-tem-narguile").checked;
-  const boxTempo = document.getElementById("box-tempo-carvao");
-  if (marcado) boxTempo.classList.remove("hidden");
-  else boxTempo.classList.add("hidden");
-}
-
-function confirmarCriarComanda(e) {
-  e.preventDefault();
-
-  const numComandaRaw = document.getElementById("comanda-numero").value.trim();
-  const numMesaRaw = document.getElementById("comanda-mesa").value.trim();
-  const nomeCliente = document.getElementById("comanda-cliente").value.trim();
-  const temNarguile = document.getElementById("comanda-tem-narguile").checked;
-  const minutosCarvao = parseInt(document.getElementById("comanda-minutos-carvao").value) || 30;
-
-  const numComanda = parseInt(numComandaRaw);
-  const numMesa = numMesaRaw !== "" ? parseInt(numMesaRaw) : null;
-
-  // Validações
-  const comandaJaExiste = comandas.some(c => c.numComanda === numComanda);
-  if (comandaJaExiste) {
-    alert(`❌ Comanda ${numComanda} já está em uso!`);
-    return;
-  }
-
-  if (comandas.length >= CONFIG_ESTABELECIMENTO.totalComandas) {
-    alert(`❌ Limite máximo de ${CONFIG_ESTABELECIMENTO.totalComandas} comandas atingido!`);
-    return;
-  }
-
-  if (numMesa !== null) {
-    if (numMesa > CONFIG_ESTABELECIMENTO.totalMesas) {
-      alert(`❌ Mesa ${numMesa} não existe! O estabelecimento possui apenas ${CONFIG_ESTABELECIMENTO.totalMesas} mesas.`);
-      return;
-    }
-    const mesaJaExiste = comandas.some(c => c.numMesa === numMesa);
-    if (mesaJaExiste) {
-      alert(`❌ Mesa ${numMesa} já está ocupada!`);
-      return;
-    }
-  }
-
-  const strComanda = `Comanda ${numComanda < 10 ? '0' + numComanda : numComanda}`;
-  const strMesa = numMesa !== null ? ` na Mesa ${numMesa < 10 ? '0' + numMesa : numMesa}` : '';
-  const strCliente = nomeCliente !== "" ? ` (${nomeCliente})` : '';
-
-  const novaComanda = {
-    id: Date.now(),
-    numComanda: numComanda,
-    numMesa: numMesa,
-    identificacao: `${strComanda}${strMesa}${strCliente}`,
-    itens: carrinho.length > 0 ? [...carrinho] : [],
-    narguile: temNarguile,
-    tempoTotalMinutos: minutosCarvao,
-    tempoRestante: minutosCarvao * 60
-  };
-
-  comandas.push(novaComanda);
-  carrinho = [];
-  renderizarCarrinho();
-  renderizarComandas();
-  atualizarPainelDisponibilidade();
-  fecharModalNovaComanda();
-  mudarAba("comandas");
-}
-
-function renderizarComandas() {
-  const grid = document.getElementById("grid-comandas");
-  const badge = document.getElementById("badge-comandas");
-  if (badge) badge.innerText = comandas.length;
-  if (!grid) return;
-
-  grid.innerHTML = "";
-
-  if (comandas.length === 0) {
-    grid.innerHTML = `<div class="col-span-full text-center py-12 text-gray-500">Nenhuma comanda aberta no momento.</div>`;
-    return;
-  }
-
-  comandas.forEach(c => {
-    let totalComanda = c.itens.reduce((acc, i) => acc + (i.preco * i.qtd), 0);
-    let minRestantes = Math.floor(c.tempoRestante / 60);
-    let segRestantes = c.tempoRestante % 60;
-    let tempoFormatado = `${minRestantes.toString().padStart(2, '0')}:${segRestantes.toString().padStart(2, '0')}`;
-    let alerteCarvao = c.narguile && c.tempoRestante <= 300;
-
-    grid.innerHTML += `
-      <div class="bg-gray-800 border ${alerteCarvao ? 'border-red-500 animate-pulse' : 'border-amber-500/40'} p-5 rounded-xl shadow-xl space-y-3 flex flex-col justify-between">
-        <div>
-          <div class="flex justify-between items-start border-b border-gray-700 pb-2">
-            <div>
-              <h3 class="font-extrabold text-white text-base">${c.identificacao}</h3>
-              <span class="text-[10px] text-amber-400 font-bold uppercase">Comanda Aberta</span>
-            </div>
-            <span class="text-xs font-mono font-bold text-emerald-400 bg-emerald-950 px-2 py-1 rounded border border-emerald-800">R$ ${totalComanda.toFixed(2)}</span>
-          </div>
-
-          ${c.narguile ? `
-            <div class="my-2 p-2.5 rounded-lg ${alerteCarvao ? 'bg-red-950/80 border border-red-700' : 'bg-gray-900 border border-gray-700'} flex justify-between items-center">
-              <div>
-                <p class="text-[10px] uppercase font-bold text-amber-400">🔥 Troca de Carvão</p>
-                <p class="text-xs ${alerteCarvao ? 'text-red-200 font-bold' : 'text-gray-300'}">${alerteCarvao ? 'TROCAR CARVÃO AGORA!' : 'Tempo da sessão'}</p>
-              </div>
-              <span class="font-mono text-base font-black ${alerteCarvao ? 'text-red-400' : 'text-amber-400'}">${tempoFormatado}</span>
-            </div>
-          ` : ''}
-
-          <div class="mt-3 space-y-1 max-h-40 overflow-y-auto pr-1">
-            <p class="text-[11px] font-bold text-gray-400 uppercase">Consumo:</p>
-            ${c.itens.length === 0 ? '<p class="text-xs text-gray-500 italic">Nenhum item adicionado</p>' : ''}
-            ${c.itens.map(i => `
-              <div class="flex justify-between text-xs py-0.5 border-b border-gray-800">
-                <span class="text-gray-300">${i.qtd}x ${i.nome}</span>
-                <span class="font-mono text-gray-400">R$ ${(i.preco * i.qtd).toFixed(2)}</span>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="space-y-1.5 pt-2 border-t border-gray-700">
-          <button onclick="carregarComandaParaCarrinho(${c.id})" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded font-bold text-xs shadow transition-colors">
-            📥 Puxar para o Caixa e Fechar
-          </button>
-          ${c.narguile ? `
-            <button onclick="renovarCarvao(${c.id})" class="w-full py-1.5 bg-amber-700 hover:bg-amber-600 text-white rounded font-bold text-xs transition-colors">
-              🔥 Renovar Tempo do Carvão (+30m)
-            </button>
-          ` : ''}
-        </div>
-      </div>
-    `;
-  });
-}
-
-function renovarCarvao(idComanda) {
-  const c = comandas.find(x => x.id === idComanda);
-  if (c) {
-    c.tempoRestante += 30 * 60;
-    renderizarComandas();
-  }
-}
-
-function carregarComandaParaCarrinho(idComanda) {
-  const c = comandas.find(x => x.id === idComanda);
-  if (!c) return;
-
-  if (carrinho.length > 0) {
-    if (!confirm("Seu carrinho atual não está vazio. Deseja substituir o carrinho atual com os itens desta comanda?")) {
-      return;
-    }
-  }
-
-  carrinho = [...c.itens];
-  comandas = comandas.filter(x => x.id !== idComanda);
-  document.getElementById("tipo-consumo").value = "LOCAL";
-  renderizarCarrinho();
-  renderizarComandas();
-  atualizarPainelDisponibilidade();
-  mudarAba("pdv");
-}
-
-// ==========================================
-// FRENTE DE CAIXA (PDV)
-// ==========================================
-function filtrarCategoria(categoria) {
-  categoriaAtual = categoria;
-  document.querySelectorAll(".btn-filtro").forEach(btn => {
-    if (btn.getAttribute("data-categoria") === categoria) {
-      btn.className = "btn-filtro bg-emerald-600 text-white border border-emerald-500 font-bold px-4 py-2 rounded-lg text-xs transition-all";
-    } else {
-      btn.className = "btn-filtro bg-gray-900 text-gray-300 hover:bg-gray-700 border border-gray-700 font-bold px-4 py-2 rounded-lg text-xs transition-all";
-    }
-  });
-  renderizarProdutos();
-}
-
-function renderizarProdutos() {
-  const grid = document.getElementById("grid-produtos");
-  if (!grid) return;
-  grid.innerHTML = "";
-
-  const produtosFiltrados = categoriaAtual === "Todos" 
-    ? produtos 
-    : produtos.filter(p => p.categoria.toLowerCase() === categoriaAtual.toLowerCase());
-
-  if (produtosFiltrados.length === 0) {
-    grid.innerHTML = `<div class="col-span-full text-center py-8 text-gray-500 text-xs">Nenhum produto cadastrado nessa categoria.</div>`;
-    return;
-  }
-
-  produtosFiltrados.forEach((prod) => {
-    const ehBebida = prod.categoria === "Bebidas";
-    grid.innerHTML += `
-      <div class="bg-gray-900 border border-gray-700/80 p-3 rounded-lg flex flex-col justify-between hover:border-emerald-500/50 transition-all">
-        <div class="w-full h-36 bg-gray-950 rounded mb-2 overflow-hidden flex items-center justify-center p-2 border border-gray-800">
-          <img src="${prod.imagem}" alt="${prod.nome}" class="max-h-full max-w-full object-contain">
-        </div>
-        <div class="flex-1 flex flex-col justify-between">
-          <div>
-            <span class="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">${prod.categoria}</span>
-            <h3 class="font-bold text-sm text-white leading-tight mb-1">${prod.nome}</h3>
-            <p class="text-xs text-gray-400">Estoque: <span class="font-bold text-gray-200">${prod.estoque} un</span></p>
-          </div>
-          <p class="text-emerald-400 font-bold font-mono text-lg my-2">R$ ${prod.preco.toFixed(2).replace('.', ',')}</p>
-        </div>
-        
-        <div class="space-y-1">
-          <button 
-            onclick="adicionarAoCarrinho(${prod.id}, false)" 
-            ${prod.estoque <= 0 ? 'disabled' : ''}
-            class="w-full py-1.5 rounded text-xs font-bold transition-colors ${prod.estoque > 0 ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}"
-          >
-            ${prod.estoque > 0 ? (ehBebida ? 'Adicionar (Quente)' : 'Adicionar ao Carrinho') : 'Sem Estoque'}
-          </button>
-          ${ehBebida ? `
-            <button 
-              onclick="adicionarAoCarrinho(${prod.id}, true)" 
-              ${prod.estoque <= 0 ? 'disabled' : ''}
-              class="w-full py-1.5 rounded text-xs font-bold bg-cyan-700 hover:bg-cyan-600 text-white transition-colors flex items-center justify-center gap-1"
-            >
-              ❄️ Adicionar Gelada (+R$ 1,00)
-            </button>
-          ` : ''}
-        </div>
-      </div>
-    `;
-  });
-}
-
-// ==========================================
-// MONTAR COMBO
-// ==========================================
-function abrirModalMontarCombo() {
-  const selectGarrafa = document.getElementById("combo-garrafa");
-  const selectEnergetico = document.getElementById("combo-energetico");
-  const selectGelo = document.getElementById("combo-gelo");
-
-  selectGarrafa.innerHTML = "";
-  selectEnergetico.innerHTML = "";
-  selectGelo.innerHTML = "";
-
-  const garrafas = produtos.filter(p => p.categoria === "Bebidas");
-  const energeticos = produtos.filter(p => p.categoria === "Energéticos/Sucos");
-  const gelos = produtos.filter(p => p.categoria === "Gelo/Acompanhamentos");
-
-  garrafas.forEach(g => { selectGarrafa.innerHTML += `<option value="${g.id}">${g.nome} (R$ ${g.preco.toFixed(2)})</option>`; });
-  energeticos.forEach(e => { selectEnergetico.innerHTML += `<option value="${e.id}">${e.nome} (R$ ${e.preco.toFixed(2)})</option>`; });
-  gelos.forEach(gl => { selectGelo.innerHTML += `<option value="${gl.id}">${gl.nome} (R$ ${gl.preco.toFixed(2)})</option>`; });
-
-  document.getElementById("modal-montar-combo").classList.remove("hidden");
-  atualizarResumoCombo();
-}
-
-function fecharModalMontarCombo() {
-  document.getElementById("modal-montar-combo").classList.add("hidden");
-}
-
-function atualizarResumoCombo() {
-  const idGarrafa = parseInt(document.getElementById("combo-garrafa").value);
-  const idEnergetico = parseInt(document.getElementById("combo-energetico").value);
-  const idGelo = parseInt(document.getElementById("combo-gelo").value);
-  const qtdEnergetico = parseInt(document.getElementById("combo-qtd-energetico").value) || 0;
-  const qtdGelo = parseInt(document.getElementById("combo-qtd-gelo").value) || 0;
-  const desconto = parseFloat(document.getElementById("combo-desconto").value) || 0;
-
-  const garrafa = produtos.find(p => p.id === idGarrafa);
-  const energetico = produtos.find(p => p.id === idEnergetico);
-  const gelo = produtos.find(p => p.id === idGelo);
-
-  let somaSemDesconto = 0;
-  if (garrafa) somaSemDesconto += garrafa.preco;
-  if (energetico) somaSemDesconto += (energetico.preco * qtdEnergetico);
-  if (gelo) somaSemDesconto += (gelo.preco * qtdGelo);
-
-  const precoFinal = Math.max(0, somaSemDesconto - desconto);
-  document.getElementById("combo-preco-final").innerText = `R$ ${precoFinal.toFixed(2).replace('.', ',')}`;
-}
-
-function confirmarAdicionarCombo() {
-  const idGarrafa = parseInt(document.getElementById("combo-garrafa").value);
-  const idEnergetico = parseInt(document.getElementById("combo-energetico").value);
-  const idGelo = parseInt(document.getElementById("combo-gelo").value);
-  const qtdEnergetico = parseInt(document.getElementById("combo-qtd-energetico").value) || 0;
-  const qtdGelo = parseInt(document.getElementById("combo-qtd-gelo").value) || 0;
-  const desconto = parseFloat(document.getElementById("combo-desconto").value) || 0;
-
-  const garrafa = produtos.find(p => p.id === idGarrafa);
-  const energetico = produtos.find(p => p.id === idEnergetico);
-  const gelo = produtos.find(p => p.id === idGelo);
-
-  if (!garrafa || garrafa.estoque < 1) {
-    alert("Garrafa selecionada indisponível no estoque!");
-    return;
-  }
-
-  let precoOriginal = garrafa.preco + (energetico ? energetico.preco * qtdEnergetico : 0) + (gelo ? gelo.preco * qtdGelo : 0);
-  let precoFinalCombo = Math.max(0, precoOriginal - desconto);
-  let custoTotalCombo = garrafa.custo + (energetico ? energetico.custo * qtdEnergetico : 0) + (gelo ? gelo.custo * qtdGelo : 0);
-
-  const comboItem = {
-    id: Date.now(),
-    isCombo: true,
-    nome: `Combo: ${garrafa.nome}`,
-    detalhes: `1x ${garrafa.nome} + ${qtdEnergetico}x ${energetico ? energetico.nome : ''} + ${qtdGelo}x ${gelo ? gelo.nome : ''}`,
-    componentes: [
-      { id: garrafa.id, qtd: 1 },
-      { id: energetico.id, qtd: qtdEnergetico },
-      { id: gelo.id, qtd: qtdGelo }
-    ],
-    preco: precoFinalCombo,
-    custo: custoTotalCombo,
-    qtd: 1
-  };
-
-  carrinho.push(comboItem);
-  renderizarCarrinho();
-  fecharModalMontarCombo();
-}
-
-// ==========================================
-// CARRINHO
-// ==========================================
-function adicionarAoCarrinho(idProduto, gelada = false) {
-  const produto = produtos.find(p => p.id === idProduto);
-  if (!produto || produto.estoque <= 0) {
-    alert("Produto indisponível em estoque!");
-    return;
-  }
-
-  const acrescimoGelada = gelada ? 1.00 : 0.00;
-  const nomeItem = gelada ? `${produto.nome} (Gelada)` : produto.nome;
-
-  const itemNoCarrinho = carrinho.find(item => item.idOriginal === idProduto && item.gelada === gelada && !item.isCombo);
-
-  if (itemNoCarrinho) {
-    if (itemNoCarrinho.qtd >= produto.estoque) {
-      alert("Quantidade limite do estoque atingida!");
-      return;
-    }
-    itemNoCarrinho.qtd++;
-  } else {
-    carrinho.push({
-      id: Date.now(),
-      idOriginal: produto.id,
-      nome: nomeItem,
-      categoria: produto.categoria,
-      custo: produto.custo,
-      preco: produto.preco + acrescimoGelada,
-      qtd: 1,
-      gelada: gelada,
-      isCombo: false
-    });
-  }
-
-  renderizarCarrinho();
-}
-
-function alterarQuantidadeCarrinho(idItem, delta) {
-  const item = carrinho.find(p => p.id === idItem);
-  if (item) {
-    if (!item.isCombo) {
-      const prodOriginal = produtos.find(p => p.id === item.idOriginal);
-      if (delta > 0 && item.qtd >= prodOriginal.estoque) {
-        alert("Quantidade máxima em estoque atingida!");
-        return;
-      }
-    }
-    item.qtd += delta;
-    if (item.qtd <= 0) {
-      removerDoCarrinho(idItem);
-      return;
-    }
-  }
-  renderizarCarrinho();
-}
-
-function removerDoCarrinho(idItem) {
-  carrinho = carrinho.filter(item => item.id !== idItem);
-  renderizarCarrinho();
-}
-
-function renderizarCarrinho() {
-  const lista = document.getElementById("lista-carrinho");
-  if (!lista) return;
-  lista.innerHTML = "";
-  totalPedido = 0;
-
-  if (carrinho.length === 0) {
-    lista.innerHTML = `<p class="text-xs text-gray-500 text-center py-4">Nenhum item no carrinho.</p>`;
-  } else {
-    carrinho.forEach((item) => {
-      const subtotal = item.preco * item.qtd;
-      totalPedido += subtotal;
-
-      lista.innerHTML += `
-        <div class="bg-gray-900 p-2.5 rounded-lg border ${item.isCombo ? 'border-amber-500/40 bg-amber-950/10' : 'border-gray-700/50'} text-xs space-y-1">
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="font-bold text-white flex items-center gap-1">
-                ${item.isCombo ? '⚡ ' : ''}${item.nome}
-              </p>
-              ${item.isCombo ? `<p class="text-[10px] text-amber-400 font-semibold leading-tight">${item.detalhes}</p>` : ''}
-              <p class="text-gray-400 text-[11px] mt-0.5">R$ ${item.preco.toFixed(2)} x ${item.qtd} = <strong class="text-emerald-400">R$ ${subtotal.toFixed(2)}</strong></p>
-            </div>
-            <div class="flex items-center gap-1">
-              <button onclick="alterarQuantidadeCarrinho(${item.id}, -1)" class="px-2 py-0.5 bg-gray-800 border border-gray-700 text-white rounded font-bold">-</button>
-              <span class="px-1 text-white font-mono">${item.qtd}</span>
-              <button onclick="alterarQuantidadeCarrinho(${item.id}, 1)" class="px-2 py-0.5 bg-gray-800 border border-gray-700 text-white rounded font-bold">+</button>
-              <button onclick="removerDoCarrinho(${item.id})" class="text-red-400 hover:text-red-300 font-bold ml-1">X</button>
-            </div>
-          </div>
-        </div>
-      `;
-    });
-  }
-
-  document.getElementById("total-valor").innerText = `R$ ${totalPedido.toFixed(2).replace('.', ',')}`;
-  calcularTroco();
-}
-
-function calcularTroco() {
-  const formaPagamento = document.getElementById("forma-pagamento").value;
-  const statusPagamento = document.getElementById("status-pagamento").value;
-  const inputRecebido = document.getElementById("valor-recebido");
-  const spanTroco = document.getElementById("valor-troco");
-
-  if (statusPagamento === "PENDENTE" || formaPagamento !== "DINHEIRO") {
-    inputRecebido.value = "";
-    inputRecebido.disabled = true;
-    spanTroco.innerText = "R$ 0,00";
-    spanTroco.className = "text-base font-extrabold font-mono text-gray-500";
-    return;
-  }
-
-  inputRecebido.disabled = false;
-  const valorRecebido = parseFloat(inputRecebido.value) || 0;
-  const troco = valorRecebido - totalPedido;
-
-  if (valorRecebido === 0 && totalPedido === 0) {
-    spanTroco.innerText = "R$ 0,00";
-    spanTroco.className = "text-base font-extrabold font-mono text-emerald-400";
-  } else if (troco >= 0) {
-    spanTroco.innerText = `R$ ${troco.toFixed(2).replace('.', ',')}`;
-    spanTroco.className = "text-base font-extrabold font-mono text-emerald-400";
-  } else {
-    spanTroco.innerText = "Valor Insuficiente";
-    spanTroco.className = "text-xs font-bold text-red-400";
-  }
-}
-
-function alternarCamposPagamento() {
-  const status = document.getElementById("status-pagamento").value;
-  const boxForma = document.getElementById("box-forma-pagamento");
-  const boxTroco = document.getElementById("box-troco");
-
-  if (status === "PENDENTE") {
-    boxForma.style.display = "none";
-    boxTroco.style.display = "none";
-  } else {
-    boxForma.style.display = "block";
-    boxTroco.style.display = "block";
-  }
-  calcularTroco();
-}
-
-function concluirPedido() {
-  if (carrinho.length === 0) {
-    alert("Adicione ao menos um produto no carrinho!");
-    return;
-  }
-
-  const tipoConsumo = document.getElementById("tipo-consumo").value;
-  const status = document.getElementById("status-pagamento").value;
-  const forma = status === "PENDENTE" ? "FIADO / A PAGAR" : document.getElementById("forma-pagamento").value;
-  const valorRecebido = parseFloat(document.getElementById("valor-recebido").value) || 0;
-  const trocoCalculado = forma === "DINHEIRO" ? Math.max(0, valorRecebido - totalPedido) : 0;
-
-  if (status === "PAGO" && forma === "DINHEIRO" && valorRecebido < totalPedido) {
-    alert("O valor recebido em dinheiro é menor que o total!");
-    return;
-  }
-
-  const novoPedido = {
-    id: Date.now(),
-    data: new Date().toLocaleString('pt-BR'),
-    operador: usuarioLogado ? usuarioLogado.nome : "Caixa",
-    tipoConsumo: tipoConsumo,
-    itens: [...carrinho],
-    total: totalPedido,
-    statusPagamento: status,
-    formaPagamento: forma,
-    valorRecebido: forma === "DINHEIRO" ? valorRecebido : totalPedido,
-    troco: trocoCalculado
-  };
-
-  pedidos.unshift(novoPedido);
-
-  // Baixa no estoque
-  carrinho.forEach(itemCarrinho => {
-    if (itemCarrinho.isCombo) {
-      itemCarrinho.componentes.forEach(comp => {
-        const prod = produtos.find(p => p.id === comp.id);
-        if (prod) prod.estoque -= (comp.qtd * itemCarrinho.qtd);
-      });
-    } else {
-      const prodOriginal = produtos.find(p => p.id === itemCarrinho.idOriginal);
-      if (prodOriginal) {
-        prodOriginal.estoque -= itemCarrinho.qtd;
-      }
-    }
-  });
-
-  alert("Pedido efetuado com sucesso!");
-
-  carrinho = [];
-  document.getElementById("valor-recebido").value = "";
-  document.getElementById("tipo-consumo").value = "VIAGEM";
-
-  renderizarProdutos();
-  renderizarCarrinho();
-  renderizarTabelaEstoque();
-  renderizarHistoricoPedidos();
-  renderizarDashboardGerencia();
-  atualizarPainelDisponibilidade();
-  salvarLocal();
-}
-
-// ==========================================
-// ESTOQUE
-// ==========================================
-function renderizarTabelaEstoque() {
-  const tabela = document.getElementById("tabela-estoque");
-  if (!tabela) return;
-  tabela.innerHTML = "";
-
-  produtos.forEach(p => {
-    tabela.innerHTML += `
-      <tr class="border-b border-gray-700/50 hover:bg-gray-800/50">
-        <td class="p-3 flex items-center gap-2">
-          <img src="${p.imagem}" class="w-8 h-8 object-cover rounded bg-gray-900">
-          <span class="font-bold text-white">${p.nome}</span>
-        </td>
-        <td class="p-3 text-xs text-emerald-400 font-semibold">${p.categoria}</td>
-        <td class="p-3 font-mono text-gray-400">R$ ${p.custo.toFixed(2)}</td>
-        <td class="p-3 font-mono font-bold text-white">R$ ${p.preco.toFixed(2)}</td>
-        <td class="p-3 font-mono ${p.estoque < 5 ? 'text-red-400 font-bold' : 'text-gray-300'}">${p.estoque} un</td>
-        <td class="p-3 text-right space-x-1">
-          <button onclick="abrirModalProduto(${p.id})" class="bg-emerald-700 hover:bg-emerald-600 px-2 py-1 rounded text-xs text-white font-bold">Editar</button>
-          <button onclick="excluirProduto(${p.id})" class="bg-red-700 hover:bg-red-600 px-2 py-1 rounded text-xs text-white font-bold">Excluir</button>
-        </td>
-      </tr>
-    `;
-  });
-}
-
-function abrirModalProduto(id = null) {
-  const modal = document.getElementById("modal-produto");
-  const titulo = document.getElementById("modal-titulo");
-
-  if (id) {
-    produtoEmEdicaoId = id;
-    const prod = produtos.find(p => p.id === id);
-    if (prod) {
-      titulo.innerText = "Editar Produto";
-      document.getElementById("novo-nome").value = prod.nome;
-      document.getElementById("nova-categoria").value = prod.categoria;
-      document.getElementById("novo-custo").value = prod.custo;
-      document.getElementById("novo-preco").value = prod.preco;
-      document.getElementById("novo-estoque").value = prod.estoque;
-      document.getElementById("nova-imagem").value = prod.imagem;
-    }
-  } else {
-    produtoEmEdicaoId = null;
-    titulo.innerText = "Novo Produto";
-    document.getElementById("form-novo-produto").reset();
-    document.getElementById("nova-imagem").value = "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=150&auto=format&fit=crop&q=60";
-  }
-
-  modal.classList.remove("hidden");
-}
-
-function fecharModalProduto() {
-  document.getElementById("modal-produto").classList.add("hidden");
-  document.getElementById("form-novo-produto").reset();
-  produtoEmEdicaoId = null;
-}
-
-function cadastrarProduto(e) {
-  e.preventDefault();
-
-  const nomeInput = document.getElementById("novo-nome").value.trim();
-  const categoriaInput = document.getElementById("nova-categoria").value;
-  const custoInput = parseFloat(document.getElementById("novo-custo").value) || 0;
-  const precoInput = parseFloat(document.getElementById("novo-preco").value) || 0;
-  const estoqueInput = parseInt(document.getElementById("novo-estoque").value) || 0;
-  const imagemInput = document.getElementById("nova-imagem").value.trim();
-
-  if (!nomeInput) {
-    alert("O nome do produto é obrigatório!");
-    return;
-  }
-
-  const imagem = imagemInput !== "" 
-    ? imagemInput 
-    : "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=150&auto=format&fit=crop&q=60";
-
-  if (produtoEmEdicaoId) {
-    const index = produtos.findIndex(p => p.id === produtoEmEdicaoId);
-    if (index !== -1) {
-      produtos[index] = {
-        ...produtos[index],
-        nome: nomeInput,
-        categoria: categoriaInput,
-        custo: custoInput,
-        preco: precoInput,
-        estoque: estoqueInput,
-        imagem: imagem
+    // SUPER ADMIN
+    if (usuario.cargo === 'super_admin') {
+      const estabelecimentoVirtual = {
+        id: 999,
+        nome: "👑 SUPER ADMIN - Controle Total",
+        plano: "enterprise",
+        ativo: true,
+        configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
+        isVirtual: true
+      };
+      
+      this.estabelecimentoAtual = estabelecimentoVirtual;
+      this.salvarSessao(usuario, estabelecimentoVirtual);
+      
+      return {
+        success: true,
+        usuario: usuario,
+        estabelecimento: estabelecimentoVirtual,
+        isSuperAdmin: true,
+        nivelAcesso: 'super_admin'
       };
     }
-  } else {
-    produtos.push({
-      id: Date.now(),
-      nome: nomeInput,
-      categoria: categoriaInput,
-      custo: custoInput,
-      preco: precoInput,
-      estoque: estoqueInput,
-      imagem: imagem
+
+    // ADMIN ou CAIXA
+    const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
+    
+    if (!estabelecimento || !estabelecimento.ativo) {
+      return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
+    }
+
+    if (usuario.cargo === 'admin' && usuario.estabelecimentoId !== estabelecimento.id) {
+      return { success: false, message: "Acesso negado!" };
+    }
+
+    this.estabelecimentoAtual = estabelecimento;
+    this.salvarSessao(usuario, estabelecimento);
+
+    return {
+      success: true,
+      usuario: usuario,
+      estabelecimento: estabelecimento,
+      isSuperAdmin: false,
+      nivelAcesso: usuario.cargo
+    };
+  }
+
+  salvarSessao(usuario, estabelecimento) {
+    const sessao = {
+      usuarioId: usuario.id,
+      estabelecimentoId: estabelecimento.id,
+      estabelecimentoNome: estabelecimento.nome,
+      isSuperAdmin: usuario.cargo === 'super_admin',
+      cargo: usuario.cargo,
+      login: new Date().toISOString()
+    };
+    localStorage.setItem('mt_sessao_atual', JSON.stringify(sessao));
+  }
+
+  getSessaoAtual() {
+    const sessao = localStorage.getItem('mt_sessao_atual');
+    if (!sessao) return null;
+    return JSON.parse(sessao);
+  }
+
+  getUsuarioAtual() {
+    const sessao = this.getSessaoAtual();
+    if (!sessao) return null;
+    return this.usuarios.find(u => u.id === sessao.usuarioId);
+  }
+
+  getEstabelecimentoAtual() {
+    if (this.estabelecimentoAtual) return this.estabelecimentoAtual;
+    
+    const sessao = this.getSessaoAtual();
+    if (!sessao) return null;
+    
+    if (sessao.isSuperAdmin) {
+      const virtual = {
+        id: 999,
+        nome: "👑 SUPER ADMIN - Controle Total",
+        plano: "enterprise",
+        ativo: true,
+        configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
+        isVirtual: true
+      };
+      this.estabelecimentoAtual = virtual;
+      return virtual;
+    }
+    
+    const estabelecimento = this.estabelecimentos.find(e => e.id === sessao.estabelecimentoId);
+    this.estabelecimentoAtual = estabelecimento;
+    return estabelecimento;
+  }
+
+  getPrefixoDB() {
+    const estabelecimento = this.getEstabelecimentoAtual();
+    if (!estabelecimento) return 'pdv_';
+    if (estabelecimento.id === 999) return 'pdv_super_admin_';
+    return `pdv_${estabelecimento.id}_`;
+  }
+
+  logout() {
+    this.estabelecimentoAtual = null;
+    localStorage.removeItem('mt_sessao_atual');
+    
+    // Remove a classe super-admin-mode
+    document.body.classList.remove('super-admin-mode');
+    
+    // Restaura todos os botões
+    document.querySelectorAll('nav button').forEach(btn => {
+      btn.style.display = '';
     });
   }
 
-  renderizarProdutos();
-  renderizarTabelaEstoque();
-  renderizarDashboardGerencia();
-  atualizarPainelDisponibilidade();
-  fecharModalProduto();
-  salvarLocal();
-}
+  // ==========================================
+  // GERENCIAMENTO DE USUÁRIOS
+  // ==========================================
 
-function excluirProduto(id) {
-  const prod = produtos.find(p => p.id === id);
-  if (confirm(`Tem certeza que deseja excluir "${prod.nome}"?`)) {
-    produtos = produtos.filter(p => p.id !== id);
-    renderizarProdutos();
-    renderizarTabelaEstoque();
-    renderizarDashboardGerencia();
-    atualizarPainelDisponibilidade();
-    salvarLocal();
-  }
-}
-
-// ==========================================
-// DASHBOARD DE GERÊNCIA
-// ==========================================
-function pedidoPertenceAoPeriodo(dataStr, periodo) {
-  if (periodo === 'todos') return true;
-
-  const partes = dataStr.split(', ');
-  const dataPartes = partes[0].split('/');
-  const dataPedido = new Date(dataPartes[2], dataPartes[1] - 1, dataPartes[0]);
-  const hoje = new Date();
-
-  dataPedido.setHours(0,0,0,0);
-  const dataHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-
-  if (periodo === 'hoje') {
-    return dataPedido.getTime() === dataHoje.getTime();
-  }
-  if (periodo === 'semana') {
-    const umDia = 24 * 60 * 60 * 1000;
-    const diffDias = Math.round((dataHoje - dataPedido) / umDia);
-    return diffDias >= 0 && diffDias <= 7;
-  }
-  if (periodo === 'mes') {
-    return dataPedido.getMonth() === hoje.getMonth() && dataPedido.getFullYear() === hoje.getFullYear();
-  }
-  if (periodo === 'ano') {
-    return dataPedido.getFullYear() === hoje.getFullYear();
-  }
-  return true;
-}
-
-function renderizarDashboardGerencia() {
-  let faturamentoTotal = 0;
-  let lucroTotal = 0;
-  let quantidadeItensVendidos = 0;
-
-  const pedidosFiltrados = pedidos.filter(p => pedidoPertenceAoPeriodo(p.data, periodoGerenciaAtual));
-
-  pedidosFiltrados.forEach(pedido => {
-    faturamentoTotal += pedido.total;
-    if (pedido.itens) {
-      pedido.itens.forEach(item => {
-        quantidadeItensVendidos += item.qtd;
-        const custoOriginal = item.custo || 0;
-        const lucroItem = (item.preco - custoOriginal) * item.qtd;
-        lucroTotal += lucroItem;
-      });
+  getCargosPermitidos() {
+    const usuario = this.getUsuarioAtual();
+    if (!usuario) return [];
+    
+    if (usuario.cargo === 'super_admin') {
+      return ['admin', 'gerente', 'caixa'];
     }
-  });
+    
+    if (usuario.cargo === 'admin') {
+      return ['gerente', 'caixa'];
+    }
+    
+    return [];
+  }
 
-  const valorEstoque = produtos.reduce((acc, p) => acc + ((p.custo || 0) * p.estoque), 0);
+  criarUsuario(dados) {
+    const usuarioAtual = this.getUsuarioAtual();
+    const cargosPermitidos = this.getCargosPermitidos();
+    
+    if (!cargosPermitidos.includes(dados.cargo)) {
+      return { 
+        success: false, 
+        message: `Você não pode criar usuários com cargo "${dados.cargo}". Cargos permitidos: ${cargosPermitidos.join(', ')}` 
+      };
+    }
 
-  document.getElementById("metrica-faturamento").innerText = `R$ ${faturamentoTotal.toFixed(2).replace('.', ',')}`;
-  document.getElementById("metrica-lucro").innerText = `R$ ${lucroTotal.toFixed(2).replace('.', ',')}`;
-  document.getElementById("metrica-itens-vendidos").innerText = `${quantidadeItensVendidos} un`;
-  document.getElementById("metrica-valor-estoque").innerText = `R$ ${valorEstoque.toFixed(2).replace('.', ',')}`;
+    let estabelecimentoId = dados.estabelecimentoId;
+    if (usuarioAtual.cargo === 'admin') {
+      estabelecimentoId = usuarioAtual.estabelecimentoId;
+    }
 
-  renderizarAuditoriaCaixa();
+    if (estabelecimentoId) {
+      const estabelecimento = this.estabelecimentos.find(e => e.id === estabelecimentoId);
+      if (!estabelecimento) {
+        return { success: false, message: "Estabelecimento não encontrado!" };
+      }
+    }
 
-  const containerCritico = document.getElementById("lista-estoque-critico");
-  if (!containerCritico) return;
-  containerCritico.innerHTML = "";
+    if (this.usuarios.some(u => u.email === dados.email)) {
+      return { success: false, message: "Este email já está cadastrado!" };
+    }
 
-  const itensCriticos = produtos.filter(p => p.estoque < 5);
+    const novoUsuario = {
+      id: Date.now(),
+      nome: dados.nome,
+      email: dados.email,
+      senha: dados.senha || "123456",
+      estabelecimentoId: estabelecimentoId,
+      cargo: dados.cargo,
+      ativo: true,
+      criadoPor: usuarioAtual.id,
+      criadoEm: new Date().toISOString()
+    };
 
-  if (itensCriticos.length === 0) {
-    containerCritico.innerHTML = `<p class="text-xs text-gray-500 col-span-full">Nenhum produto em nível crítico de estoque.</p>`;
-  } else {
-    itensCriticos.forEach(p => {
-      containerCritico.innerHTML += `
-        <div class="bg-gray-900 border border-red-900/50 p-3 rounded-lg flex items-center justify-between">
-          <div>
-            <p class="text-xs font-bold text-white">${p.nome}</p>
-            <p class="text-[10px] text-gray-400">${p.categoria}</p>
+    this.usuarios.push(novoUsuario);
+    this.salvarUsuarios();
+    
+    return { 
+      success: true, 
+      usuario: novoUsuario,
+      message: `✅ Usuário "${dados.nome}" (${dados.cargo}) criado com sucesso!` 
+    };
+  }
+
+  listarUsuarios() {
+    const usuarioAtual = this.getUsuarioAtual();
+    if (!usuarioAtual) return [];
+
+    if (usuarioAtual.cargo === 'super_admin') {
+      return this.usuarios;
+    }
+
+    if (usuarioAtual.cargo === 'admin') {
+      return this.usuarios.filter(u => u.estabelecimentoId === usuarioAtual.estabelecimentoId);
+    }
+
+    return [usuarioAtual];
+  }
+
+  editarUsuario(id, dados) {
+    const usuarioAtual = this.getUsuarioAtual();
+    const usuario = this.usuarios.find(u => u.id === id);
+    
+    if (!usuario) {
+      return { success: false, message: "Usuário não encontrado!" };
+    }
+
+    if (usuarioAtual.cargo !== 'super_admin') {
+      if (usuarioAtual.estabelecimentoId !== usuario.estabelecimentoId) {
+        return { success: false, message: "Acesso negado!" };
+      }
+      
+      if (usuario.cargo === 'admin' && usuarioAtual.id !== usuario.id) {
+        return { success: false, message: "Acesso negado! Não pode editar outro administrador." };
+      }
+    }
+
+    if (dados.nome) usuario.nome = dados.nome;
+    if (dados.senha) usuario.senha = dados.senha;
+    if (dados.ativo !== undefined) usuario.ativo = dados.ativo;
+    if (dados.cargo && usuarioAtual.cargo === 'super_admin') {
+      usuario.cargo = dados.cargo;
+    }
+
+    this.salvarUsuarios();
+    return { success: true, message: "✅ Usuário atualizado com sucesso!" };
+  }
+
+  toggleUsuarioStatus(id) {
+    const usuarioAtual = this.getUsuarioAtual();
+    const usuario = this.usuarios.find(u => u.id === id);
+    
+    if (!usuario) {
+      return { success: false, message: "Usuário não encontrado!" };
+    }
+
+    if (usuarioAtual.id === id) {
+      return { success: false, message: "Você não pode desativar a si mesmo!" };
+    }
+
+    if (usuarioAtual.cargo !== 'super_admin') {
+      if (usuarioAtual.estabelecimentoId !== usuario.estabelecimentoId) {
+        return { success: false, message: "Acesso negado!" };
+      }
+      
+      if (usuario.cargo === 'admin') {
+        return { success: false, message: "Acesso negado! Não pode desativar outro administrador." };
+      }
+    }
+
+    usuario.ativo = !usuario.ativo;
+    this.salvarUsuarios();
+    
+    const status = usuario.ativo ? 'ativado' : 'desativado';
+    return { success: true, message: `✅ Usuário ${status} com sucesso!` };
+  }
+
+  // ==========================================
+  // GERENCIAMENTO DE ESTABELECIMENTOS
+  // ==========================================
+
+  criarEstabelecimento(dados) {
+    const usuarioAtual = this.getUsuarioAtual();
+    
+    if (usuarioAtual.cargo !== 'super_admin') {
+      return { success: false, message: "Apenas o Super Admin pode criar estabelecimentos!" };
+    }
+
+    const novo = {
+      id: Date.now(),
+      nome: dados.nome,
+      cnpj: dados.cnpj || "",
+      endereco: dados.endereco || "",
+      telefone: dados.telefone || "",
+      plano: dados.plano || "basico",
+      ativo: true,
+      dataCadastro: new Date().toISOString(),
+      configuracao: {
+        totalMesas: dados.totalMesas || 10,
+        totalComandas: dados.totalComandas || 30,
+        corTema: dados.corTema || "emerald"
+      }
+    };
+    
+    this.estabelecimentos.push(novo);
+    this.salvarEstabelecimentos();
+
+    const resultadoUsuario = this.criarUsuario({
+      nome: dados.nomeAdmin,
+      email: dados.emailAdmin,
+      senha: dados.senhaAdmin || "123456",
+      estabelecimentoId: novo.id,
+      cargo: 'admin'
+    });
+
+    return { 
+      success: true, 
+      estabelecimento: novo,
+      usuario: resultadoUsuario.usuario,
+      message: `✅ Estabelecimento "${dados.nome}" criado com sucesso!` 
+    };
+  }
+
+  listarEstabelecimentos() {
+    const usuarioAtual = this.getUsuarioAtual();
+    
+    if (usuarioAtual.cargo === 'super_admin') {
+      return this.estabelecimentos;
+    }
+    
+    if (usuarioAtual.cargo === 'admin') {
+      return this.estabelecimentos.filter(e => e.id === usuarioAtual.estabelecimentoId);
+    }
+    
+    return [];
+  }
+
+  // ==========================================
+  // PAINEL DE ADMINISTRAÇÃO (SUPER ADMIN)
+  // ==========================================
+
+  abrirPainelAdmin() {
+    const usuario = this.getUsuarioAtual();
+    if (!usuario || usuario.cargo !== 'super_admin') {
+      alert('❌ Acesso restrito ao Super Administrador!');
+      return;
+    }
+
+    // Adiciona classe para esconder o PDV
+    document.body.classList.add('super-admin-mode');
+
+    // Esconde os botões de navegação (exceto Admin e Sair)
+    const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
+    botoesParaEsconder.forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.style.display = 'none';
+    });
+
+    // Mostra o botão Admin e Sair
+    const btnAdmin = document.getElementById('btn-admin');
+    const btnSair = document.getElementById('btn-sair');
+    if (btnAdmin) btnAdmin.style.display = '';
+    if (btnSair) btnSair.style.display = '';
+
+    document.getElementById('modal-painel-admin').classList.remove('hidden');
+    this.atualizarPainelAdmin();
+  }
+
+  fecharPainelAdmin() {
+    const modal = document.getElementById('modal-painel-admin');
+    if (modal) modal.classList.add('hidden');
+    
+    // Remove a classe super-admin-mode
+    document.body.classList.remove('super-admin-mode');
+    
+    // Restaura os botões de navegação
+    const botoesParaRestaurar = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
+    botoesParaRestaurar.forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.style.display = '';
+    });
+  }
+
+  atualizarPainelAdmin() {
+    // Atualizar estatísticas
+    const totalEstabelecimentos = this.estabelecimentos.length;
+    const totalUsuarios = this.usuarios.length;
+    const totalAtivos = this.estabelecimentos.filter(e => e.ativo).length;
+    const totalPremium = this.estabelecimentos.filter(e => e.plano === 'premium').length;
+
+    const elTotalEstab = document.getElementById('admin-total-estabelecimentos');
+    const elTotalUsers = document.getElementById('admin-total-usuarios');
+    const elTotalAtivos = document.getElementById('admin-total-ativos');
+    const elTotalPremium = document.getElementById('admin-total-premium');
+
+    if (elTotalEstab) elTotalEstab.innerText = totalEstabelecimentos;
+    if (elTotalUsers) elTotalUsers.innerText = totalUsuarios;
+    if (elTotalAtivos) elTotalAtivos.innerText = totalAtivos;
+    if (elTotalPremium) elTotalPremium.innerText = totalPremium;
+
+    // Renderizar estabelecimentos
+    const tbodyEstab = document.getElementById('admin-lista-estabelecimentos');
+    if (tbodyEstab) {
+      tbodyEstab.innerHTML = this.estabelecimentos.map(e => `
+        <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+          <td class="p-2 text-gray-400">${e.id}</td>
+          <td class="p-2 font-bold text-white">${e.nome}</td>
+          <td class="p-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.plano === 'enterprise' ? 'bg-purple-950 text-purple-400 border border-purple-800' : e.plano === 'premium' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
+              ${e.plano.toUpperCase()}
+            </span>
+          </td>
+          <td class="p-2 text-gray-400">${this.usuarios.filter(u => u.estabelecimentoId === e.id).length}</td>
+          <td class="p-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
+              ${e.ativo ? '🟢 Ativo' : '🔴 Inativo'}
+            </span>
+          </td>
+          <td class="p-2 text-right space-x-1">
+            <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
+              ${e.ativo ? 'Desativar' : 'Ativar'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Renderizar usuários
+    const tbodyUser = document.getElementById('admin-lista-usuarios');
+    if (tbodyUser) {
+      tbodyUser.innerHTML = this.usuarios.map(u => {
+        const cargoLabel = {
+          'super_admin': '👑 Super Admin',
+          'admin': '🏢 Admin',
+          'gerente': '📋 Gerente',
+          'caixa': '💰 Caixa'
+        }[u.cargo] || u.cargo;
+        
+        const estabelecimentoNome = u.estabelecimentoId ? 
+          this.estabelecimentos.find(e => e.id === u.estabelecimentoId)?.nome || 'N/A' : 
+          'Sistema';
+
+        const isSuperAdmin = u.cargo === 'super_admin';
+        
+        return `
+          <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+            <td class="p-2 text-gray-400">${u.id}</td>
+            <td class="p-2 font-bold text-white">${u.nome}</td>
+            <td class="p-2 text-gray-300">${u.email}</td>
+            <td class="p-2">
+              <span class="text-[10px] font-bold ${u.cargo === 'super_admin' ? 'text-purple-400' : u.cargo === 'admin' ? 'text-amber-400' : u.cargo === 'gerente' ? 'text-blue-400' : 'text-gray-400'}">
+                ${cargoLabel}
+              </span>
+            </td>
+            <td class="p-2 text-gray-400 text-[10px]">${estabelecimentoNome}</td>
+            <td class="p-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
+                ${u.ativo ? '🟢 Ativo' : '🔴 Inativo'}
+              </span>
+            </td>
+            <td class="p-2 text-right space-x-1">
+              ${!isSuperAdmin ? `
+                <button onclick="tenantManager.abrirModalEditarUsuario(${u.id})" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded text-[10px] text-white">✏️</button>
+                <button onclick="tenantManager.toggleUsuarioStatus(${u.id})" class="${u.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
+                  ${u.ativo ? '🔴' : '🟢'}
+                </button>
+              ` : '<span class="text-gray-500 text-[10px]">👑</span>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // ==========================================
+  // TOGGLE ESTABELECIMENTO
+  // ==========================================
+
+  toggleEstabelecimentoStatus(id) {
+    const estabelecimento = this.estabelecimentos.find(e => e.id === id);
+    if (!estabelecimento) return;
+
+    const novoStatus = !estabelecimento.ativo;
+    const acao = novoStatus ? 'ativar' : 'desativar';
+    
+    if (confirm(`Tem certeza que deseja ${acao} o estabelecimento "${estabelecimento.nome}"?`)) {
+      estabelecimento.ativo = novoStatus;
+      this.salvarEstabelecimentos();
+      this.atualizarPainelAdmin();
+      alert(`✅ Estabelecimento ${novoStatus ? 'ativado' : 'desativado'} com sucesso!`);
+    }
+  }
+
+  // ==========================================
+  // MODAL: EDITAR USUÁRIO (SUPER ADMIN)
+  // ==========================================
+
+  abrirModalEditarUsuario(id) {
+    const usuario = this.usuarios.find(u => u.id === id);
+    if (!usuario) {
+      alert('Usuário não encontrado!');
+      return;
+    }
+
+    const usuarioAtual = this.getUsuarioAtual();
+    if (usuario.cargo === 'super_admin' && usuarioAtual.id === usuario.id) {
+      alert('❌ Você não pode editar a si mesmo!');
+      return;
+    }
+
+    const modalHTML = `
+      <div id="modal-editar-usuario" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300]">
+        <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+          
+          <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+            <h3 class="font-bold text-white text-lg">✏️ Editar Usuário</h3>
+            <button onclick="fecharModalEditarUsuario()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
           </div>
-          <span class="text-xs font-bold bg-red-950 text-red-400 px-2 py-1 rounded border border-red-800">${p.estoque} un</span>
+
+          <form id="form-editar-usuario" onsubmit="salvarEdicaoUsuario(event)" class="space-y-3">
+            
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Nome</label>
+              <input type="text" id="edit-nome" value="${usuario.nome}" required 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Email</label>
+              <input type="email" id="edit-email" value="${usuario.email}" required 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Cargo</label>
+              <select id="edit-cargo" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                <option value="admin" ${usuario.cargo === 'admin' ? 'selected' : ''}>Admin (Dono da Adega)</option>
+                <option value="gerente" ${usuario.cargo === 'gerente' ? 'selected' : ''}>Gerente</option>
+                <option value="caixa" ${usuario.cargo === 'caixa' ? 'selected' : ''}>Caixa</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Nova Senha (deixe em branco para manter)</label>
+              <input type="text" id="edit-senha" placeholder="Digite a nova senha" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento</label>
+              <select id="edit-estabelecimento" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                ${this.estabelecimentos.map(e => `
+                  <option value="${e.id}" ${usuario.estabelecimentoId === e.id ? 'selected' : ''}>${e.nome}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div class="flex items-center gap-2 pt-2">
+              <input type="checkbox" id="edit-ativo" ${usuario.ativo ? 'checked' : ''} class="w-4 h-4 accent-emerald-500">
+              <label for="edit-ativo" class="text-xs text-gray-300 cursor-pointer">Usuário ativo</label>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+              <button type="button" onclick="fecharModalEditarUsuario()" 
+                      class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300 transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" 
+                      class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg transition-colors">
+                💾 Salvar Alterações
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    const oldModal = document.getElementById('modal-editar-usuario');
+    if (oldModal) oldModal.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    window.usuarioEditandoId = id;
+  }
+
+  fecharModalEditarUsuario() {
+    const modal = document.getElementById('modal-editar-usuario');
+    if (modal) modal.remove();
+    window.usuarioEditandoId = null;
+  }
+
+  salvarEdicaoUsuario(e) {
+    e.preventDefault();
+    
+    const id = window.usuarioEditandoId;
+    if (!id) {
+      alert('Erro: Usuário não identificado!');
+      return;
+    }
+
+    const dados = {
+      nome: document.getElementById('edit-nome').value.trim(),
+      email: document.getElementById('edit-email').value.trim(),
+      cargo: document.getElementById('edit-cargo').value,
+      senha: document.getElementById('edit-senha').value.trim() || undefined,
+      estabelecimentoId: parseInt(document.getElementById('edit-estabelecimento').value),
+      ativo: document.getElementById('edit-ativo').checked
+    };
+
+    if (!dados.nome || !dados.email) {
+      alert('❌ Nome e email são obrigatórios!');
+      return;
+    }
+
+    const emailExiste = this.usuarios.some(u => u.email === dados.email && u.id !== id);
+    if (emailExiste) {
+      alert('❌ Este email já está em uso por outro usuário!');
+      return;
+    }
+
+    const usuario = this.usuarios.find(u => u.id === id);
+    if (!usuario) {
+      alert('Usuário não encontrado!');
+      return;
+    }
+
+    usuario.nome = dados.nome;
+    usuario.email = dados.email;
+    usuario.cargo = dados.cargo;
+    usuario.estabelecimentoId = dados.estabelecimentoId;
+    usuario.ativo = dados.ativo;
+    if (dados.senha) {
+      usuario.senha = dados.senha;
+    }
+
+    this.salvarUsuarios();
+    this.fecharModalEditarUsuario();
+    this.atualizarPainelAdmin();
+    
+    alert('✅ Usuário atualizado com sucesso!');
+  }
+
+  // ==========================================
+  // MODAL: NOVO ESTABELECIMENTO
+  // ==========================================
+
+  abrirModalNovoEstabelecimento() {
+    const modalHTML = `
+      <div id="modal-novo-estabelecimento" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
+        <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-lg space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          
+          <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+            <h3 class="font-bold text-white text-lg">🏢 Novo Estabelecimento</h3>
+            <button onclick="fecharModalNovoEstabelecimento()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
+          </div>
+
+          <form id="form-novo-estabelecimento" onsubmit="salvarNovoEstabelecimento(event)" class="space-y-3">
+            
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Estabelecimento *</label>
+              <input type="text" id="ne-nome" required placeholder="Ex: Adega do Zé" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">CNPJ</label>
+              <input type="text" id="ne-cnpj" placeholder="12.345.678/0001-90" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Endereço</label>
+              <input type="text" id="ne-endereco" placeholder="Rua das Adegas, 123" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Telefone</label>
+              <input type="text" id="ne-telefone" placeholder="(11) 99999-9999" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Plano</label>
+              <select id="ne-plano" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                <option value="basico">Básico - R$ 49,90/mês</option>
+                <option value="premium" selected>Premium - R$ 99,90/mês</option>
+                <option value="enterprise">Enterprise - R$ 199,90/mês</option>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Mesas</label>
+                <input type="number" id="ne-mesas" value="10" min="1" 
+                       class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Comandas</label>
+                <input type="number" id="ne-comandas" value="30" min="1" 
+                       class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+              </div>
+            </div>
+
+            <div class="border-t border-gray-700 pt-3 mt-2">
+              <p class="text-xs font-bold text-amber-400 mb-2">👤 Usuário Administrador (Dono da Adega)</p>
+              
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Admin *</label>
+                <input type="text" id="ne-admin-nome" required placeholder="Nome do responsável" 
+                       class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+              </div>
+
+              <div class="mt-2">
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Email do Admin *</label>
+                <input type="email" id="ne-admin-email" required placeholder="admin@adega.com" 
+                       class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+              </div>
+
+              <div class="mt-2">
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Senha do Admin</label>
+                <input type="text" id="ne-admin-senha" value="123456" 
+                       class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+                <p class="text-[10px] text-gray-500 mt-1">Deixe em branco para usar "123456"</p>
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+              <button type="button" onclick="fecharModalNovoEstabelecimento()" 
+                      class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300 transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" 
+                      class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg transition-colors">
+                ✅ Criar Estabelecimento
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    const oldModal = document.getElementById('modal-novo-estabelecimento');
+    if (oldModal) oldModal.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+  }
+
+  salvarNovoEstabelecimento(e) {
+    e.preventDefault();
+
+    const dados = {
+      nome: document.getElementById('ne-nome').value.trim(),
+      cnpj: document.getElementById('ne-cnpj').value.trim(),
+      endereco: document.getElementById('ne-endereco').value.trim(),
+      telefone: document.getElementById('ne-telefone').value.trim(),
+      plano: document.getElementById('ne-plano').value,
+      totalMesas: parseInt(document.getElementById('ne-mesas').value) || 10,
+      totalComandas: parseInt(document.getElementById('ne-comandas').value) || 30,
+      nomeAdmin: document.getElementById('ne-admin-nome').value.trim(),
+      emailAdmin: document.getElementById('ne-admin-email').value.trim(),
+      senhaAdmin: document.getElementById('ne-admin-senha').value.trim() || '123456'
+    };
+
+    if (!dados.nome) {
+      alert('❌ O nome do estabelecimento é obrigatório!');
+      return;
+    }
+
+    if (!dados.nomeAdmin || !dados.emailAdmin) {
+      alert('❌ Os dados do administrador são obrigatórios!');
+      return;
+    }
+
+    const resultado = this.criarEstabelecimento(dados);
+    
+    if (resultado.success) {
+      alert(resultado.message + `\n\n📧 Email: ${dados.emailAdmin}\n🔑 Senha: ${dados.senhaAdmin}`);
+      this.fecharModalNovoEstabelecimento();
+      this.atualizarPainelAdmin();
+    } else {
+      alert('❌ ' + resultado.message);
+    }
+  }
+
+  fecharModalNovoEstabelecimento() {
+    const modal = document.getElementById('modal-novo-estabelecimento');
+    if (modal) modal.remove();
+  }
+
+  // ==========================================
+  // MODAL: NOVO USUÁRIO
+  // ==========================================
+
+  abrirModalNovoUsuario() {
+    const usuarioAtual = this.getUsuarioAtual();
+    const cargosPermitidos = this.getCargosPermitidos();
+    
+    if (cargosPermitidos.length === 0) {
+      alert('❌ Você não tem permissão para criar usuários!');
+      return;
+    }
+
+    const modalHTML = `
+      <div id="modal-novo-usuario" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
+        <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+          
+          <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+            <h3 class="font-bold text-white text-lg">👤 Novo Usuário</h3>
+            <button onclick="fecharModalNovoUsuario()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
+          </div>
+
+          <form id="form-novo-usuario" onsubmit="salvarNovoUsuario(event)" class="space-y-3">
+            
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Nome *</label>
+              <input type="text" id="nu-nome" required placeholder="Nome do usuário" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Email *</label>
+              <input type="email" id="nu-email" required placeholder="usuario@adega.com" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Cargo *</label>
+              <select id="nu-cargo" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                ${cargosPermitidos.map(c => `
+                  <option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Senha</label>
+              <input type="text" id="nu-senha" value="123456" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+              <p class="text-[10px] text-gray-500 mt-1">Deixe em branco para usar "123456"</p>
+            </div>
+
+            ${usuarioAtual.cargo === 'super_admin' ? `
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento</label>
+                <select id="nu-estabelecimento" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                  ${this.estabelecimentos.map(e => `
+                    <option value="${e.id}">${e.nome}</option>
+                  `).join('')}
+                </select>
+              </div>
+            ` : ''}
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+              <button type="button" onclick="fecharModalNovoUsuario()" 
+                      class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300 transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" 
+                      class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg transition-colors">
+                ✅ Criar Usuário
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    const oldModal = document.getElementById('modal-novo-usuario');
+    if (oldModal) oldModal.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+  }
+
+  salvarNovoUsuario(e) {
+    e.preventDefault();
+
+    const usuarioAtual = this.getUsuarioAtual();
+    
+    const dados = {
+      nome: document.getElementById('nu-nome').value.trim(),
+      email: document.getElementById('nu-email').value.trim(),
+      senha: document.getElementById('nu-senha').value.trim() || '123456',
+      cargo: document.getElementById('nu-cargo').value,
+      estabelecimentoId: null
+    };
+
+    if (usuarioAtual.cargo === 'super_admin') {
+      const estabSelect = document.getElementById('nu-estabelecimento');
+      if (estabSelect) {
+        dados.estabelecimentoId = parseInt(estabSelect.value);
+      }
+    } else {
+      dados.estabelecimentoId = usuarioAtual.estabelecimentoId;
+    }
+
+    if (!dados.nome || !dados.email) {
+      alert('❌ Nome e email são obrigatórios!');
+      return;
+    }
+
+    const resultado = this.criarUsuario(dados);
+    
+    if (resultado.success) {
+      alert(resultado.message);
+      this.fecharModalNovoUsuario();
+      this.atualizarPainelAdmin();
+    } else {
+      alert('❌ ' + resultado.message);
+    }
+  }
+
+  fecharModalNovoUsuario() {
+    const modal = document.getElementById('modal-novo-usuario');
+    if (modal) modal.remove();
+  }
+
+  // ==========================================
+  // CADASTRO RÁPIDO PARA CLIENTE (CELULAR)
+  // ==========================================
+
+  abrirModalCadastroCliente() {
+    const usuario = this.getUsuarioAtual();
+    if (!usuario || usuario.cargo !== 'super_admin') {
+      alert('❌ Acesso restrito ao Super Administrador!');
+      return;
+    }
+
+    const modalHTML = `
+      <div id="modal-cadastro-cliente" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
+        <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+          
+          <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+            <h3 class="font-bold text-white text-lg">📱 Cadastrar Cliente</h3>
+            <button onclick="fecharModalCadastroCliente()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
+          </div>
+
+          <form id="form-cadastro-cliente" onsubmit="salvarCadastroCliente(event)" class="space-y-3">
+            
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Cliente *</label>
+              <input type="text" id="cc-nome" required placeholder="Ex: João da Adega" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Email *</label>
+              <input type="email" id="cc-email" required placeholder="cliente@email.com" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Senha *</label>
+              <input type="text" id="cc-senha" required value="123456" 
+                     class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento *</label>
+              <select id="cc-estabelecimento" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                ${this.estabelecimentos.map(e => `
+                  <option value="${e.id}">${e.nome}</option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Cargo *</label>
+              <select id="cc-cargo" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                <option value="admin">Admin (Dono)</option>
+                <option value="gerente">Gerente</option>
+                <option value="caixa">Caixa</option>
+              </select>
+            </div>
+
+            <div class="bg-amber-950/30 border border-amber-700/30 p-3 rounded-lg">
+              <p class="text-[10px] text-amber-400">📋 Informe os dados e clique em criar. O cliente receberá as credenciais por email (ou você envia manualmente).</p>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+              <button type="button" onclick="fecharModalCadastroCliente()" 
+                      class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300 transition-colors">
+                Cancelar
+              </button>
+              <button type="submit" 
+                      class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg transition-colors">
+                ✅ Criar Conta
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    const oldModal = document.getElementById('modal-cadastro-cliente');
+    if (oldModal) oldModal.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+  }
+
+  fecharModalCadastroCliente() {
+    const modal = document.getElementById('modal-cadastro-cliente');
+    if (modal) modal.remove();
+  }
+
+  salvarCadastroCliente(e) {
+    e.preventDefault();
+
+    const dados = {
+      nome: document.getElementById('cc-nome').value.trim(),
+      email: document.getElementById('cc-email').value.trim(),
+      senha: document.getElementById('cc-senha').value.trim() || '123456',
+      cargo: document.getElementById('cc-cargo').value,
+      estabelecimentoId: parseInt(document.getElementById('cc-estabelecimento').value)
+    };
+
+    if (!dados.nome || !dados.email) {
+      alert('❌ Nome e email são obrigatórios!');
+      return;
+    }
+
+    if (this.usuarios.some(u => u.email === dados.email)) {
+      alert('❌ Este email já está cadastrado!');
+      return;
+    }
+
+    const resultado = this.criarUsuario({
+      nome: dados.nome,
+      email: dados.email,
+      senha: dados.senha,
+      estabelecimentoId: dados.estabelecimentoId,
+      cargo: dados.cargo
+    });
+
+    if (resultado.success) {
+      const mensagem = `
+✅ CONTA CRIADA COM SUCESSO!
+
+📧 Email: ${dados.email}
+🔑 Senha: ${dados.senha}
+👤 Nome: ${dados.nome}
+🏢 Estabelecimento: ${this.estabelecimentos.find(e => e.id === dados.estabelecimentoId)?.nome}
+📋 Cargo: ${dados.cargo.toUpperCase()}
+
+🌐 Acesse: https://adegatabariapdv.netlify.app/
+      `;
+
+      alert(mensagem);
+      navigator.clipboard?.writeText(mensagem);
+      
+      this.fecharModalCadastroCliente();
+      this.atualizarPainelAdmin();
+    } else {
+      alert('❌ ' + resultado.message);
+    }
+  }
+
+  // ==========================================
+  // GERENCIAR CADASTROS PENDENTES (SERVIDOR)
+  // ==========================================
+
+  async abrirModalPendentes() {
+    const usuario = this.getUsuarioAtual();
+    if (!usuario || usuario.cargo !== 'super_admin') {
+      alert('❌ Acesso restrito ao Super Administrador!');
+      return;
+    }
+
+    try {
+      const pendentes = await db.getAllPendentes() || [];
+      
+      const badge = document.getElementById('badge-pendentes');
+      if (badge) badge.innerText = pendentes.length;
+
+      if (pendentes.length === 0) {
+        alert('✅ Nenhum cadastro pendente de aprovação!');
+        return;
+      }
+
+      let listaHTML = pendentes.map((p, index) => `
+        <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg mb-2">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-bold text-white text-sm">${p.nome}</p>
+              <p class="text-xs text-gray-400">${p.email}</p>
+              <p class="text-[10px] text-gray-500">Cadastro: ${new Date(p.dataCadastro).toLocaleString('pt-BR')}</p>
+            </div>
+            <div class="flex gap-1">
+              <button onclick="tenantManager.aprovarCadastro(${index})" class="bg-emerald-600 hover:bg-emerald-500 px-2 py-1 rounded text-[10px] text-white font-bold">
+                ✅ Aprovar
+              </button>
+              <button onclick="tenantManager.reprovarCadastro(${index})" class="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-[10px] text-white font-bold">
+                ❌ Reprovar
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      const modalHTML = `
+        <div id="modal-pendentes" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
+          <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+              <h3 class="font-bold text-white text-lg">⏳ Cadastros Pendentes</h3>
+              <button onclick="fecharModalPendentes()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
+            </div>
+            
+            <div class="space-y-2">
+              ${listaHTML}
+            </div>
+
+            <div class="flex justify-end pt-2 border-t border-gray-700">
+              <button onclick="fecharModalPendentes()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-white">Fechar</button>
+            </div>
+          </div>
         </div>
       `;
-    });
-  }
-}
 
-function filtrarPeriodoGerencia(periodo) {
-  periodoGerenciaAtual = periodo;
-
-  document.querySelectorAll(".btn-periodo").forEach(btn => {
-    btn.className = "btn-periodo px-3 py-1.5 rounded text-xs font-bold text-gray-300 hover:text-white";
-  });
-
-  const btnAtivo = document.getElementById(`btn-periodo-${periodo}`);
-  if (btnAtivo) {
-    btnAtivo.className = "btn-periodo px-3 py-1.5 rounded text-xs font-bold bg-amber-600 text-white";
-  }
-
-  renderizarDashboardGerencia();
-}
-
-function aplicarFiltroDataPersonalizada() {
-  renderizarDashboardGerencia();
-}
-
-function limparFiltroData() {
-  document.getElementById("filtro-data-inicio").value = "";
-  document.getElementById("filtro-data-fim").value = "";
-  filtrarPeriodoGerencia('todos');
-}
-
-// ==========================================
-// AUDITORIA DE CAIXA
-// ==========================================
-function renderizarAuditoriaCaixa() {
-  const containerAuditoria = document.getElementById("painel-auditoria-caixa");
-  const containerMovimentacoes = document.getElementById("lista-movimentacoes-gerencia");
-  if (!containerAuditoria) return;
-
-  const vendasDinheiro = pedidos
-    .filter(p => p.statusPagamento === "PAGO" && p.formaPagamento === "DINHEIRO")
-    .reduce((acc, p) => acc + p.total, 0);
-
-  const totalSuprimentos = movimentacoesCaixa
-    .filter(m => m.tipo === "SUPRIMENTO")
-    .reduce((acc, m) => acc + m.valor, 0);
-
-  const totalSangrias = movimentacoesCaixa
-    .filter(m => m.tipo === "SANGRIA")
-    .reduce((acc, m) => acc + m.valor, 0);
-
-  const saldoCalculadoSistema = vendasDinheiro + totalSuprimentos - totalSangrias;
-
-  if (!ultimoFechamentoCego) {
-    containerAuditoria.innerHTML = `
-      <div class="text-center py-4 space-y-2">
-        <span class="text-amber-400 font-bold text-xs">⏳ Aguardando Fechamento do Caixa pelo Operador</span>
-        <div class="grid grid-cols-3 gap-2 text-left pt-2 border-t border-gray-800 text-xs">
-          <div><p class="text-gray-400">Vendas Em Dinheiro:</p><p class="font-bold font-mono text-white">R$ ${vendasDinheiro.toFixed(2)}</p></div>
-          <div><p class="text-blue-400">(+) Suprimentos:</p><p class="font-bold font-mono text-blue-400">R$ ${totalSuprimentos.toFixed(2)}</p></div>
-          <div><p class="text-red-400">(-) Sangrias:</p><p class="font-bold font-mono text-red-400">R$ ${totalSangrias.toFixed(2)}</p></div>
-        </div>
-        <div class="pt-2 text-right">
-          <span class="text-xs text-gray-400">Esperado Gaveteiro: </span>
-          <strong class="font-mono text-emerald-400 text-sm">R$ ${saldoCalculadoSistema.toFixed(2)}</strong>
-        </div>
-      </div>
-    `;
-  } else {
-    const contado = ultimoFechamentoCego.valorContado;
-    const diferenca = contado - saldoCalculadoSistema;
-    
-    let statusBadge = "";
-    if (diferenca === 0) {
-      statusBadge = `<span class="bg-emerald-950 text-emerald-400 border border-emerald-700 px-3 py-1 rounded text-xs font-black">✅ CAIXA BATENDO PERFEITAMENTE</span>`;
-    } else if (diferenca > 0) {
-      statusBadge = `<span class="bg-amber-950 text-amber-400 border border-amber-700 px-3 py-1 rounded text-xs font-black">⚠️ SOBRANDO R$ ${diferenca.toFixed(2)}</span>`;
-    } else {
-      statusBadge = `<span class="bg-red-950 text-red-400 border border-red-700 px-3 py-1 rounded text-xs font-black">🚨 FALTANDO R$ ${Math.abs(diferenca).toFixed(2)}</span>`;
+      const oldModal = document.getElementById('modal-pendentes');
+      if (oldModal) oldModal.remove();
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+    } catch (error) {
+      console.error('❌ Erro ao buscar pendentes:', error);
+      alert('❌ Erro ao carregar pendentes. Tente novamente.');
     }
+  }
 
-    containerAuditoria.innerHTML = `
-      <div class="space-y-3">
-        <div class="flex justify-between items-center border-b border-gray-800 pb-2">
-          <div>
-            <p class="text-xs font-bold text-white">Último Fechamento Enviado por: <span class="text-amber-400">${ultimoFechamentoCego.operador}</span></p>
-            <p class="text-[10px] text-gray-400">${ultimoFechamentoCego.data}</p>
-          </div>
-          ${statusBadge}
-        </div>
+  async aprovarCadastro(index) {
+    try {
+      const pendentes = await db.getAllPendentes() || [];
+      const cadastro = pendentes[index];
+      
+      if (!cadastro) {
+        alert('❌ Cadastro não encontrado!');
+        return;
+      }
 
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-          <div class="bg-gray-950 p-2 rounded border border-gray-800">
-            <span class="text-gray-400 text-[10px]">Contado (Caixa Cego):</span>
-            <p class="font-bold font-mono text-white text-sm">R$ ${contado.toFixed(2)}</p>
-          </div>
-          <div class="bg-gray-950 p-2 rounded border border-gray-800">
-            <span class="text-gray-400 text-[10px]">Calculado pelo Sistema:</span>
-            <p class="font-bold font-mono text-emerald-400 text-sm">R$ ${saldoCalculadoSistema.toFixed(2)}</p>
-          </div>
-          <div class="bg-gray-950 p-2 rounded border border-gray-800">
-            <span class="text-blue-400 text-[10px]">Total Suprimentos:</span>
-            <p class="font-bold font-mono text-blue-400 text-sm">R$ ${totalSuprimentos.toFixed(2)}</p>
-          </div>
-          <div class="bg-gray-950 p-2 rounded border border-gray-800">
-            <span class="text-red-400 text-[10px]">Total Sangrias:</span>
-            <p class="font-bold font-mono text-red-400 text-sm">R$ ${totalSangrias.toFixed(2)}</p>
+      const estabelecimentos = this.listarEstabelecimentos();
+      
+      const modalHTML = `
+        <div id="modal-aprovar" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[150]">
+          <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+            <h3 class="font-bold text-white text-lg">✅ Aprovar Cadastro</h3>
+            <p class="text-xs text-gray-400">Defina as permissões para <strong>${cadastro.nome}</strong></p>
+            
+            <form id="form-aprovar" onsubmit="tenantManager.confirmarAprovacao(event, ${index})" class="space-y-3">
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento</label>
+                <select id="aprovacao-estabelecimento" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                  ${estabelecimentos.map(e => `
+                    <option value="${e.id}">${e.nome}</option>
+                  `).join('')}
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-gray-400 mb-1">Cargo</label>
+                <select id="aprovacao-cargo" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
+                  <option value="admin">Admin (Dono)</option>
+                  <option value="gerente">Gerente</option>
+                  <option value="caixa">Caixa</option>
+                </select>
+              </div>
+
+              <div class="bg-amber-950/30 border border-amber-700/30 p-3 rounded-lg">
+                <p class="text-[10px] text-amber-400">⚠️ O cliente receberá as credenciais para acessar o sistema.</p>
+              </div>
+
+              <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
+                <button type="button" onclick="fecharModalAprovacao()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white">✅ Aprovar</button>
+              </div>
+            </form>
           </div>
         </div>
-      </div>
-    `;
-  }
+      `;
 
-  if (containerMovimentacoes) {
-    containerMovimentacoes.innerHTML = "";
-    if (movimentacoesCaixa.length === 0) {
-      containerMovimentacoes.innerHTML = `<p class="text-xs text-gray-500 italic">Nenhuma sangria ou suprimento registrado neste turno.</p>`;
-    } else {
-      movimentacoesCaixa.forEach(m => {
-        const ehSangria = m.tipo === "SANGRIA";
-        containerMovimentacoes.innerHTML += `
-          <div class="flex justify-between items-center bg-gray-900 border ${ehSangria ? 'border-red-900/40' : 'border-blue-900/40'} p-2 rounded text-xs">
-            <div>
-              <span class="font-bold ${ehSangria ? 'text-red-400' : 'text-blue-400'}">${ehSangria ? '🔻 SANGRIA' : '🔹 SUPRIMENTO'}</span>
-              <span class="text-gray-300 ml-2">${m.motivo}</span>
-              <p class="text-[10px] text-gray-500">${m.data} por ${m.operador}</p>
-            </div>
-            <span class="font-mono font-bold ${ehSangria ? 'text-red-400' : 'text-blue-400'}">R$ ${m.valor.toFixed(2)}</span>
-          </div>
-        `;
-      });
+      const oldAprovacao = document.getElementById('modal-aprovar');
+      if (oldAprovacao) oldAprovacao.remove();
+      document.body.insertAdjacentHTML('beforeend', modalHTML);
+    } catch (error) {
+      console.error('❌ Erro ao aprovar:', error);
+      alert('❌ Erro ao aprovar cadastro. Tente novamente.');
     }
   }
-}
 
-// ==========================================
-// HISTÓRICO DE PEDIDOS
-// ==========================================
-function renderizarHistoricoPedidos() {
-  const container = document.getElementById("lista-pedidos-historico");
-  if (!container) return;
-  container.innerHTML = "";
-
-  if (pedidos.length === 0) {
-    container.innerHTML = `<p class="text-xs text-gray-500 text-center py-6">Nenhum pedido registrado.</p>`;
-    return;
-  }
-
-  pedidos.forEach(p => {
-    let itensHtml = p.itens.map(i => `<span class="bg-gray-900 px-2 py-1 rounded text-[11px]">${i.qtd}x ${i.nome}</span>`).join(" ");
-    
-    const ehLocal = p.tipoConsumo === "LOCAL";
-    const badgeConsumo = ehLocal
-      ? `<span class="bg-blue-950 text-blue-400 border border-blue-800 font-extrabold px-2 py-0.5 rounded text-[10px] uppercase">🍹 Consumo no Local</span>`
-      : `<span class="bg-purple-950 text-purple-400 border border-purple-800 font-extrabold px-2 py-0.5 rounded text-[10px] uppercase">🛍️ Para Viagem</span>`;
-
-    container.innerHTML += `
-      <div class="bg-gray-900 border border-gray-700 p-4 rounded-lg space-y-2">
-        <div class="flex flex-wrap justify-between items-center text-xs border-b border-gray-800 pb-2 gap-2">
-          <div class="flex items-center gap-2">
-            <span class="font-mono text-gray-400">#${p.id.toString().slice(-6)} - ${p.data} (Op: ${p.operador})</span>
-            ${badgeConsumo}
-          </div>
-          <span class="font-bold px-2 py-0.5 rounded ${p.statusPagamento === 'PAGO' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">${p.statusPagamento}</span>
-        </div>
-        <div class="flex flex-wrap gap-1">${itensHtml}</div>
-        <div class="flex justify-between items-center pt-2 text-xs border-t border-gray-800 font-mono">
-          <span class="text-gray-400">Forma: ${p.formaPagamento} ${p.troco > 0 ? `(Troco: R$ ${p.troco.toFixed(2)})` : ''}</span>
-          <span class="text-emerald-400 font-bold text-sm">Total: R$ ${p.total.toFixed(2)}</span>
-        </div>
-      </div>
-    `;
-  });
-}
-
-// ==========================================
-// SANGRIA / SUPRIMENTO
-// ==========================================
-function abrirModalMovimentacao(tipo) {
-  tipoMovimentacaoAtual = tipo;
-  const titulo = document.getElementById("titulo-modal-movimentacao");
-  titulo.innerText = tipo === "SANGRIA" ? "🔻 Registrar Sangria (Retirada)" : "🔹 Registrar Suprimento (Entrada de Troco)";
-  document.getElementById("movimentacao-valor").value = "";
-  document.getElementById("movimentacao-motivo").value = "";
-  document.getElementById("modal-movimentacao").classList.remove("hidden");
-}
-
-function fecharModalMovimentacao() {
-  document.getElementById("modal-movimentacao").classList.add("hidden");
-}
-
-function confirmarMovimentacaoCaixa(e) {
-  e.preventDefault();
-  const valor = parseFloat(document.getElementById("movimentacao-valor").value) || 0;
-  const motivo = document.getElementById("movimentacao-motivo").value.trim();
-
-  if (valor <= 0) {
-    alert("Informe um valor válido!");
-    return;
-  }
-
-  const movimentacao = {
-    id: Date.now(),
-    data: new Date().toLocaleString('pt-BR'),
-    tipo: tipoMovimentacaoAtual,
-    valor: valor,
-    motivo: motivo,
-    operador: usuarioLogado ? usuarioLogado.nome : "Caixa"
-  };
-
-  movimentacoesCaixa.push(movimentacao);
-  salvarLocal();
-  alert(`${tipoMovimentacaoAtual} de R$ ${valor.toFixed(2)} registrada com sucesso!`);
-  fecharModalMovimentacao();
-}
-
-// ==========================================
-// FECHAMENTO CEGO
-// ==========================================
-function abrirModalFechamentoCego() {
-  document.getElementById("fechamento-dinheiro-contado").value = "";
-  document.getElementById("modal-fechamento-cego").classList.remove("hidden");
-}
-
-function fecharModalFechamentoCego() {
-  document.getElementById("modal-fechamento-cego").classList.add("hidden");
-}
-
-function processarFechamentoCego(e) {
-  e.preventDefault();
-  const contado = parseFloat(document.getElementById("fechamento-dinheiro-contado").value) || 0;
-
-  ultimoFechamentoCego = {
-    data: new Date().toLocaleString('pt-BR'),
-    operador: usuarioLogado ? usuarioLogado.nome : 'Caixa',
-    valorContado: contado
-  };
-
-  salvarLocal();
-  alert("Fechamento enviado ao gerente com sucesso!");
-  fecharModalFechamentoCego();
-  renderizarDashboardGerencia();
-}
-
-// ==========================================
-// ATALHOS DE TECLADO
-// ==========================================
-document.addEventListener("keydown", (e) => {
-  const tag = document.activeElement.tagName;
-  const emModal = document.querySelector(".fixed:not(.hidden)");
-
-  if (e.key === "F2") {
+  async confirmarAprovacao(e, index) {
     e.preventDefault();
-    const buscaInput = document.getElementById("busca-produto");
-    if (buscaInput) buscaInput.focus();
-  }
-
-  if (e.key === "F4") {
-    e.preventDefault();
-    const selectForma = document.getElementById("forma-pagamento");
-    if (selectForma) {
-      selectForma.value = "PIX";
-      calcularTroco();
-    }
-  }
-
-  if (e.key === "F6") {
-    e.preventDefault();
-    abrirModalMovimentacao('SANGRIA');
-  }
-
-  if (e.key === "F7") {
-    e.preventDefault();
-    abrirModalMovimentacao('SUPRIMENTO');
-  }
-
-  if (e.key === "F8") {
-    e.preventDefault();
-    abrirModalFechamentoCego();
-  }
-
-  if (e.code === "Space" && tag !== "INPUT" && tag !== "TEXTAREA" && !emModal) {
-    e.preventDefault();
-    concluirPedido();
-  }
-});
-
-// ==========================================
-// EVENTOS DE CONEXÃO
-// ==========================================
-window.addEventListener("online", () => {
-  console.log("Conexão reestabelecida. Dados em sincronia local.");
-});
-window.addEventListener("offline", () => {
-  alert("⚠️ Você está offline. O sistema continuará salvando as vendas localmente!");
-});
-
-// ==========================================
-// INICIALIZAÇÃO
-// ==========================================
-carregarLocal();
-
-window.abrirModal = abrirModalProduto;
-window.fecharModal = fecharModalProduto;
-
-// ==========================================
-// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
-// ==========================================
-
-async function realizarLoginMulti(e) {
-  e.preventDefault();
-  
-  const email = document.getElementById("login-email").value.trim();
-  const senha = document.getElementById("login-senha-multi").value.trim();
-
-  if (!email || !senha) {
-    alert("Preencha todos os campos!");
-    return;
-  }
-
-  const resultado = tenantManager.login(email, senha);
-
-  if (!resultado.success) {
-    alert(resultado.message);
-    return;
-  }
-
-  const { usuario, estabelecimento, isSuperAdmin } = resultado;
-
-  usuarioLogado = {
-    usuario: usuario.email.split('@')[0],
-    senha: usuario.senha,
-    nome: usuario.nome,
-    cargo: usuario.cargo,
-    estabelecimentoId: estabelecimento.id,
-    estabelecimentoNome: estabelecimento.nome,
-    isSuperAdmin: isSuperAdmin || false
-  };
-
-  CONFIG_ESTABELECIMENTO = estabelecimento.configuracao;
-
-  document.getElementById("tela-login").classList.add("hidden");
-  document.getElementById("sistema-principal").classList.remove("hidden");
-
-  document.getElementById("nome-usuario-logado").innerText = usuarioLogado.nome;
-  document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
-  
-  const elEstabelecimento = document.getElementById("estabelecimento-nome");
-  if (elEstabelecimento) {
-    if (isSuperAdmin) {
-      elEstabelecimento.innerText = "👑 SUPER ADMIN - Controle Total";
-      elEstabelecimento.className = "font-bold text-purple-400";
-    } else {
-      elEstabelecimento.innerText = estabelecimento.nome;
-      elEstabelecimento.className = "font-bold text-amber-400";
-    }
-  }
-
-  const btnGerencia = document.getElementById("btn-aba-gerencia");
-  if (usuarioLogado.cargo === "gerente" || usuarioLogado.cargo === "admin" || isSuperAdmin) {
-    btnGerencia.classList.remove("hidden");
-  } else {
-    btnGerencia.classList.add("hidden");
-  }
-
-  await carregarDadosDoEstabelecimento();
-
-  renderizarProdutos();
-  renderizarCarrinho();
-  renderizarTabelaEstoque();
-  renderizarHistoricoPedidos();
-  renderizarDashboardGerencia();
-  renderizarComandas();
-  atualizarPainelDisponibilidade();
-}
-
-// ==========================================
-// CARREGAR DADOS DO ESTABELECIMENTO
-// ==========================================
-
-async function carregarDadosDoEstabelecimento() {
-  try {
-    const prefixo = tenantManager.getPrefixoDB();
-    console.log(`📂 Carregando dados do estabelecimento: ${prefixo}`);
     
-    const produtosDB = await db.getAllProdutos();
-    if (produtosDB && produtosDB.length > 0) {
-      produtos = produtosDB;
+    try {
+      const pendentes = await db.getAllPendentes() || [];
+      const cadastro = pendentes[index];
+      
+      if (!cadastro) {
+        alert('❌ Cadastro não encontrado!');
+        return;
+      }
+
+      const estabelecimentoId = parseInt(document.getElementById('aprovacao-estabelecimento').value);
+      const cargo = document.getElementById('aprovacao-cargo').value;
+
+      const novoUsuario = {
+        id: Date.now(),
+        nome: cadastro.nome,
+        email: cadastro.email,
+        senha: cadastro.senha,
+        estabelecimentoId: estabelecimentoId,
+        cargo: cargo,
+        ativo: true,
+        criadoPor: this.getUsuarioAtual().id,
+        criadoEm: new Date().toISOString()
+      };
+
+      this.usuarios.push(novoUsuario);
+      await this.salvarUsuarios();
+
+      await db.deletePendente(cadastro.id);
+
+      const mensagem = `
+✅ CONTA APROVADA COM SUCESSO!
+
+📧 Email: ${novoUsuario.email}
+🔑 Senha: ${novoUsuario.senha}
+🏢 Estabelecimento: ${this.estabelecimentos.find(e => e.id === estabelecimentoId)?.nome}
+👤 Nome: ${novoUsuario.nome}
+📋 Cargo: ${cargo.toUpperCase()}
+
+🌐 Acesse: https://adegatabariapdv.netlify.app/
+      `;
+
+      alert(mensagem);
+      
+      try {
+        navigator.clipboard?.writeText(mensagem);
+      } catch (clipError) {
+        console.log('📋 Copie a mensagem manualmente');
+      }
+
+      fecharModalAprovacao();
+      this.fecharModalPendentes();
+      this.atualizarPainelAdmin();
+      
+      const badge = document.getElementById('badge-pendentes');
+      if (badge) {
+        const restantes = await db.getAllPendentes() || [];
+        badge.innerText = restantes.length;
+      }
+    } catch (error) {
+      console.error('❌ Erro ao confirmar aprovação:', error);
+      alert('❌ Erro ao aprovar cadastro. Tente novamente.');
     }
-    
-    const pedidosDB = await db.getAllPedidos();
-    if (pedidosDB && pedidosDB.length > 0) {
-      pedidos = pedidosDB;
+  }
+
+  async reprovarCadastro(index) {
+    try {
+      const pendentes = await db.getAllPendentes() || [];
+      const cadastro = pendentes[index];
+      
+      if (!cadastro) {
+        alert('❌ Cadastro não encontrado!');
+        return;
+      }
+
+      if (confirm(`❌ Tem certeza que deseja REPROVAR o cadastro de "${cadastro.nome}"?`)) {
+        await db.deletePendente(cadastro.id);
+        alert(`✅ Cadastro de "${cadastro.nome}" foi reprovado!`);
+        this.fecharModalPendentes();
+        this.atualizarPainelAdmin();
+        
+        const badge = document.getElementById('badge-pendentes');
+        if (badge) {
+          const restantes = await db.getAllPendentes() || [];
+          badge.innerText = restantes.length;
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao reprovar:', error);
+      alert('❌ Erro ao reprovar cadastro. Tente novamente.');
     }
-    
-    const comandasDB = await db.getAllComandas();
-    if (comandasDB && comandasDB.length > 0) {
-      comandas = comandasDB;
-    }
-    
-    const movDB = await db.getAllMovimentacoes();
-    if (movDB && movDB.length > 0) {
-      movimentacoesCaixa = movDB;
-    }
-    
-    console.log(`✅ Dados carregados para: ${tenantManager.getEstabelecimentoAtual()?.nome}`);
-  } catch (error) {
-    console.error('❌ Erro ao carregar dados:', error);
-    carregarLocal();
+  }
+
+  fecharModalPendentes() {
+    const modal = document.getElementById('modal-pendentes');
+    if (modal) modal.remove();
+  }
+
+  fecharModalAprovacao() {
+    const modal = document.getElementById('modal-aprovar');
+    if (modal) modal.remove();
   }
 }
 
 // ==========================================
-// LOGOUT MULTI-TENANT
+// INSTÂNCIA GLOBAL
 // ==========================================
 
-function logoutMulti() {
+const tenantManager = new MultiTenantManager();
+
+// ==========================================
+// FUNÇÕES GLOBAIS
+// ==========================================
+
+window.tenantManager = tenantManager;
+
+// ==========================================
+// PAINEL ADMIN
+// ==========================================
+
+window.abrirPainelAdmin = function() {
+  tenantManager.abrirPainelAdmin();
+};
+
+window.fecharPainelAdmin = function() {
+  tenantManager.fecharPainelAdmin();
+};
+
+window.atualizarPainelAdmin = function() {
+  tenantManager.atualizarPainelAdmin();
+};
+
+// ==========================================
+// EDITAR USUÁRIO
+// ==========================================
+
+window.fecharModalEditarUsuario = function() {
+  tenantManager.fecharModalEditarUsuario();
+};
+
+window.salvarEdicaoUsuario = function(e) {
+  tenantManager.salvarEdicaoUsuario(e);
+};
+
+// ==========================================
+// ESTABELECIMENTOS
+// ==========================================
+
+window.abrirModalNovoEstabelecimento = function() {
+  tenantManager.abrirModalNovoEstabelecimento();
+};
+
+window.fecharModalNovoEstabelecimento = function() {
+  const modal = document.getElementById('modal-novo-estabelecimento');
+  if (modal) modal.remove();
+};
+
+window.salvarNovoEstabelecimento = function(e) {
+  tenantManager.salvarNovoEstabelecimento(e);
+};
+
+// ==========================================
+// USUÁRIOS
+// ==========================================
+
+window.abrirModalNovoUsuario = function() {
+  tenantManager.abrirModalNovoUsuario();
+};
+
+window.fecharModalNovoUsuario = function() {
+  const modal = document.getElementById('modal-novo-usuario');
+  if (modal) modal.remove();
+};
+
+window.salvarNovoUsuario = function(e) {
+  tenantManager.salvarNovoUsuario(e);
+};
+
+// ==========================================
+// CADASTRO CLIENTE (CELULAR)
+// ==========================================
+
+window.abrirModalCadastroCliente = function() {
+  tenantManager.abrirModalCadastroCliente();
+};
+
+window.fecharModalCadastroCliente = function() {
+  tenantManager.fecharModalCadastroCliente();
+};
+
+window.salvarCadastroCliente = function(e) {
+  tenantManager.salvarCadastroCliente(e);
+};
+
+// ==========================================
+// CADASTROS PENDENTES
+// ==========================================
+
+window.abrirModalPendentes = function() {
+  tenantManager.abrirModalPendentes();
+};
+
+window.aprovarCadastro = function(index) {
+  tenantManager.aprovarCadastro(index);
+};
+
+window.reprovarCadastro = function(index) {
+  tenantManager.reprovarCadastro(index);
+};
+
+window.confirmarAprovacao = function(e, index) {
+  tenantManager.confirmarAprovacao(e, index);
+};
+
+window.fecharModalPendentes = function() {
+  tenantManager.fecharModalPendentes();
+};
+
+window.fecharModalAprovacao = function() {
+  tenantManager.fecharModalAprovacao();
+};
+
+// ==========================================
+// LOGOUT
+// ==========================================
+
+window.logoutMulti = function() {
   tenantManager.logout();
-  usuarioLogado = null;
-  carrinho = [];
+  
+  document.body.classList.remove('super-admin-mode');
+  
+  document.querySelectorAll('nav button').forEach(btn => {
+    btn.style.display = '';
+  });
+  
+  if (typeof usuarioLogado !== 'undefined') {
+    window.usuarioLogado = null;
+  }
   
   const formLogin = document.getElementById("form-login");
   if (formLogin) formLogin.reset();
   
-  document.getElementById("sistema-principal").classList.add("hidden");
-  document.getElementById("tela-login").classList.remove("hidden");
+  const sistema = document.getElementById("sistema-principal");
+  const login = document.getElementById("tela-login");
+  if (sistema) sistema.classList.add("hidden");
+  if (login) login.classList.remove("hidden");
   
-  document.getElementById("nome-usuario-logado").innerText = "";
-  document.getElementById("cargo-usuario-logado").innerText = "";
-  document.getElementById("estabelecimento-nome").innerText = "Carregando...";
+  const nome = document.getElementById("nome-usuario-logado");
+  const cargo = document.getElementById("cargo-usuario-logado");
+  const estab = document.getElementById("estabelecimento-nome");
+  if (nome) nome.innerText = "";
+  if (cargo) cargo.innerText = "";
+  if (estab) estab.innerText = "Carregando...";
   
   console.log("👋 Usuário desconectado com sucesso!");
-}
+};
 
 // ==========================================
-// SOBRE
+// LOG
 // ==========================================
 
-function abrirModalSobre() {
-  document.getElementById("modal-sobre").classList.remove("hidden");
-}
-
-function fecharModalSobre() {
-  document.getElementById("modal-sobre").classList.add("hidden");
-}
-
-document.addEventListener("keydown", function(e) {
-  if (e.key === "Escape") {
-    const modalSobre = document.getElementById("modal-sobre");
-    if (modalSobre && !modalSobre.classList.contains("hidden")) {
-      fecharModalSobre();
-    }
-  }
-});
-
-// ==========================================
-// 🔥 TELA DE CADASTRO
-// ==========================================
-
-function mostrarTelaCadastro() {
-  document.getElementById("tela-login").classList.add("hidden");
-  document.getElementById("tela-cadastro").classList.remove("hidden");
-}
-
-function mostrarTelaLogin() {
-  document.getElementById("tela-cadastro").classList.add("hidden");
-  document.getElementById("tela-login").classList.remove("hidden");
-}
-
-async function realizarCadastro(e) {
-  e.preventDefault();
-
-  const nome = document.getElementById('cadastro-nome').value.trim();
-  const email = document.getElementById('cadastro-email').value.trim();
-  const senha = document.getElementById('cadastro-senha').value;
-  const senhaConfirm = document.getElementById('cadastro-senha-confirm').value;
-
-  if (!nome || !email || !senha) {
-    alert('❌ Preencha todos os campos!');
-    return;
-  }
-
-  if (senha !== senhaConfirm) {
-    alert('❌ As senhas não coincidem!');
-    return;
-  }
-
-  if (senha.length < 4) {
-    alert('❌ A senha deve ter pelo menos 4 caracteres!');
-    return;
-  }
-
-  const usuarios = JSON.parse(localStorage.getItem('mt_usuarios')) || [];
-  const usuariosPendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes')) || [];
-
-  if (usuarios.some(u => u.email === email) || usuariosPendentes.some(u => u.email === email)) {
-    alert('❌ Este email já está cadastrado ou pendente de aprovação!');
-    return;
-  }
-
-  const novoCadastro = {
-    id: Date.now(),
-    nome: nome,
-    email: email,
-    senha: senha,
-    estabelecimentoId: null,
-    cargo: null,
-    ativo: false,
-    pendente: true,
-    dataCadastro: new Date().toISOString(),
-    aprovado: false
-  };
-
-  usuariosPendentes.push(novoCadastro);
-  localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(usuariosPendentes));
-
-  alert(`✅ Cadastro realizado com sucesso!\n\n📧 Email: ${email}\n\n⏳ Aguarde a aprovação do administrador.\n\nVocê será notificado quando sua conta for ativada.`);
-
-  document.getElementById('form-cadastro').reset();
-  mostrarTelaLogin();
-}
+console.log('✅ Multi-Tenant carregado com sucesso!');
+console.log(`🏢 ${tenantManager.estabelecimentos.length} estabelecimentos cadastrados`);
+console.log(`👤 ${tenantManager.usuarios.length} usuários cadastrados`);
+console.log('📌 Contas disponíveis:');
+console.log('   👑 Super Admin: super@admin.com / admin123');
+console.log('   🏢 Admin Adega: joao@adegaa.com / 123');
+console.log('   🏢 Admin Tabacaria: maria@adegab.com / 123');
+console.log('   💰 Caixa: carlos@adegaa.com / 123');
