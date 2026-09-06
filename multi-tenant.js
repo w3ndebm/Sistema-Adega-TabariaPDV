@@ -1,3 +1,5 @@
+const API_URL = 'https://adegapdv-api.onrender.com';
+
 // ==========================================
 // MULTI-TENANT - SISTEMA PARA VÁRIAS ADEGAS
 // ==========================================
@@ -88,88 +90,125 @@ class MultiTenantManager {
   // LOGIN
   // ==========================================
 
-  login(email, senha) {
-    console.log('🔐 Tentando login:', email);
-    console.log('👤 Usuários disponíveis:', this.usuarios.length);
-    
-    const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
-    
-    if (!usuario) {
-      console.log('❌ Usuário não encontrado');
-      return { success: false, message: "Email ou senha incorretos!" };
+  async login(email, senha) {
+  console.log('🔐 Tentando login:', email);
+
+  try {
+    const response = await fetch(
+      'https://adegapdv-api.onrender.com/login',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          senha: senha
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    console.log('📡 Resposta da API:', data);
+
+    if (!response.ok || !data.success) {
+      console.log('❌ Login recusado');
+
+      return {
+        success: false,
+        message: data.error || 'Email ou senha incorretos!'
+      };
     }
 
-    console.log('✅ Usuário encontrado:', usuario.nome, 'Cargo:', usuario.cargo);
+    const usuario = data.usuario;
 
+    console.log(
+      '✅ Usuário encontrado:',
+      usuario.nome,
+      'Cargo:',
+      usuario.cargo
+    );
+
+    // SUPER ADMIN
     if (usuario.cargo === 'super_admin') {
+
       const estabelecimentoVirtual = {
         id: 999,
-        nome: "👑 SUPER ADMIN - Controle Total",
-        plano: "enterprise",
+        nome: '👑 SUPER ADMIN - Controle Total',
+        plano: 'enterprise',
         ativo: true,
-        configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
+        configuracao: {
+          totalMesas: 999,
+          totalComandas: 999,
+          corTema: 'purple'
+        },
         isVirtual: true
       };
+
       this.estabelecimentoAtual = estabelecimentoVirtual;
-      this.salvarSessao(usuario, estabelecimentoVirtual);
-      return { success: true, usuario: usuario, estabelecimento: estabelecimentoVirtual, isSuperAdmin: true };
+
+      this.salvarSessao(
+        usuario,
+        estabelecimentoVirtual
+      );
+
+      return {
+        success: true,
+        usuario: usuario,
+        estabelecimento: estabelecimentoVirtual,
+        isSuperAdmin: true
+      };
     }
 
-    const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
-    if (!estabelecimento || !estabelecimento.ativo) {
-      return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
+    // USUÁRIO NORMAL
+    const estabelecimento = this.estabelecimentos.find(
+      e => Number(e.id) === Number(usuario.estabelecimentoId)
+    );
+
+    if (!estabelecimento) {
+      console.log(
+        '❌ Estabelecimento não encontrado:',
+        usuario.estabelecimentoId
+      );
+
+      return {
+        success: false,
+        message: 'Estabelecimento não encontrado ou inativo!'
+      };
     }
-    
+
+    if (!estabelecimento.ativo) {
+      return {
+        success: false,
+        message: 'Estabelecimento inativo!'
+      };
+    }
+
     this.estabelecimentoAtual = estabelecimento;
-    this.salvarSessao(usuario, estabelecimento);
-    return { success: true, usuario: usuario, estabelecimento: estabelecimento, isSuperAdmin: false };
-  }
 
-  salvarSessao(usuario, estabelecimento) {
-    const sessao = {
-      usuarioId: usuario.id,
-      estabelecimentoId: estabelecimento.id,
-      estabelecimentoNome: estabelecimento.nome,
-      isSuperAdmin: usuario.cargo === 'super_admin',
-      cargo: usuario.cargo,
-      login: new Date().toISOString()
+    this.salvarSessao(
+      usuario,
+      estabelecimento
+    );
+
+    return {
+      success: true,
+      usuario: usuario,
+      estabelecimento: estabelecimento,
+      isSuperAdmin: false
     };
-    localStorage.setItem('mt_sessao_atual', JSON.stringify(sessao));
-  }
 
-  getSessaoAtual() {
-    const sessao = localStorage.getItem('mt_sessao_atual');
-    if (!sessao) return null;
-    return JSON.parse(sessao);
-  }
+  } catch (error) {
 
-  getUsuarioAtual() {
-    const sessao = this.getSessaoAtual();
-    if (!sessao) return null;
-    return this.usuarios.find(u => u.id === sessao.usuarioId);
-  }
+    console.error('❌ Erro ao conectar com a API:', error);
 
-  getEstabelecimentoAtual() {
-    if (this.estabelecimentoAtual) return this.estabelecimentoAtual;
-    const sessao = this.getSessaoAtual();
-    if (!sessao) return null;
-    const estabelecimento = this.estabelecimentos.find(e => e.id === sessao.estabelecimentoId);
-    this.estabelecimentoAtual = estabelecimento;
-    return estabelecimento;
+    return {
+      success: false,
+      message: 'Não foi possível conectar ao servidor.'
+    };
   }
-
-  getPrefixoDB() {
-    const estabelecimento = this.getEstabelecimentoAtual();
-    if (!estabelecimento) return 'pdv_';
-    if (estabelecimento.id === 999) return 'pdv_super_admin_';
-    return `pdv_${estabelecimento.id}_`;
-  }
-
-  logout() {
-    this.estabelecimentoAtual = null;
-    localStorage.removeItem('mt_sessao_atual');
-    document.body.classList.remove('super-admin-mode');
-  }
+}
 
   // ==========================================
   // USUÁRIOS
