@@ -1447,6 +1447,10 @@ a// ==========================================
 // LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
 // ==========================================
 
+// ==========================================
+// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
+// ==========================================
+
 async function realizarLoginMulti(e) {
   e.preventDefault();
   
@@ -1458,10 +1462,18 @@ async function realizarLoginMulti(e) {
     return;
   }
 
-  // Aguardar o tenantManager carregar os dados
+  console.log('🔐 Tentando login:', email);
+
+  // CARREGAR DADOS ANTES DE TENTAR LOGAR
   await tenantManager.carregarDados();
 
+  // MOSTRAR USUÁRIOS DISPONÍVEIS
+  console.log('👤 Usuários disponíveis:', tenantManager.usuarios);
+
+  // FAZER LOGIN
   const resultado = tenantManager.login(email, senha);
+
+  console.log('📊 Resultado do login:', resultado);
 
   if (!resultado.success) {
     alert(resultado.message);
@@ -1470,6 +1482,7 @@ async function realizarLoginMulti(e) {
 
   const { usuario, estabelecimento, isSuperAdmin } = resultado;
 
+  // Configurar usuário logado
   usuarioLogado = {
     usuario: usuario.email.split('@')[0],
     senha: usuario.senha,
@@ -1480,7 +1493,7 @@ async function realizarLoginMulti(e) {
     isSuperAdmin: isSuperAdmin || false
   };
 
-  CONFIG_ESTABELECIMENTO = estabelecimento.configuracao;
+  CONFIG_ESTABELECIMENTO = estabelecimento.configuracao || { totalMesas: 10, totalComandas: 30 };
 
   document.getElementById("tela-login").classList.add("hidden");
   document.getElementById("sistema-principal").classList.remove("hidden");
@@ -1510,6 +1523,9 @@ async function realizarLoginMulti(e) {
     }
   }
 
+  // ==========================================
+  // SUPER ADMIN - MOSTRA SÓ PAINEL ADMIN
+  // ==========================================
   if (isSuperAdmin) {
     document.getElementById("aba-pdv").classList.add("hidden");
     document.getElementById("aba-comandas").classList.add("hidden");
@@ -1539,6 +1555,10 @@ async function realizarLoginMulti(e) {
     return;
   }
 
+  // ==========================================
+  // USUÁRIO NORMAL - MOSTRA PDV
+  // ==========================================
+  
   document.querySelectorAll('nav button').forEach(btn => {
     btn.style.display = '';
   });
