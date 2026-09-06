@@ -10,37 +10,7 @@ class MultiTenantManager {
     this.carregarDados();
   }
 
-  carregarDados() {
-    const usuariosSalvos = localStorage.getItem('mt_usuarios');
-    const estabelecimentosSalvos = localStorage.getItem('mt_estabelecimentos');
-    
-    if (usuariosSalvos) {
-      this.usuarios = JSON.parse(usuariosSalvos);
-    } else {
-      // DADOS INICIAIS
-      this.usuarios = [
-        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null },
-        { id: 2, nome: "João Silva", email: "joao@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "admin", ativo: true, criadoPor: 1 },
-        { id: 3, nome: "Carlos Oliveira", email: "carlos@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "caixa", ativo: true, criadoPor: 2 },
-        { id: 4, nome: "Maria Santos", email: "maria@adegab.com", senha: "123", estabelecimentoId: 2, cargo: "admin", ativo: true, criadoPor: 1 }
-      ];
-      this.salvarUsuarios();
-    }
 
-    if (estabelecimentosSalvos) {
-      this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
-    } else {
-      this.estabelecimentos = [
-        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } },
-        { id: 2, nome: "Tabacaria da Maria", cnpj: "98.765.432/0001-10", endereco: "Av. Tabacaria, 456", telefone: "(11) 88888-8888", plano: "basico", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" } }
-      ];
-      this.salvarEstabelecimentos();
-    }
-    
-    console.log('📦 Dados carregados:');
-    console.log('👤 Usuários:', this.usuarios.length);
-    console.log('🏢 Estabelecimentos:', this.estabelecimentos.length);
-  }
 
   salvarUsuarios() {
     localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));

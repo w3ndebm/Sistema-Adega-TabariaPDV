@@ -1701,35 +1701,53 @@ async function realizarCadastro(e) {
   }
 
   try {
-    // Buscar usuários e pendentes do servidor
+    // 1. Buscar usuários do servidor
     const usuarios = await db.getAllUsuarios() || [];
     const usuariosPendentes = await db.getAllPendentes() || [];
 
+    // 2. Verificar se email já existe
     if (usuarios.some(u => u.email === email) || usuariosPendentes.some(u => u.email === email)) {
       alert('❌ Este email já está cadastrado ou pendente de aprovação!');
       return;
     }
 
+    // 3. Criar cadastro pendente
     const novoCadastro = {
-      id: Date.now(),
       nome: nome,
       email: email,
       senha: senha,
       estabelecimentoId: null,
       cargo: null,
-      ativo: false,
+      ativo: false
+    };
+
+    // 4. Salvar no servidor (API)
+    const response = await fetch('https://adegapdv-api.onrender.com/pendentes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(novoCadastro)
+    });
+
+    if (!response.ok) {
+      throw new Error('Erro ao salvar cadastro no servidor');
+    }
+
+    // 5. Também salvar no LocalStorage (fallback)
+    const pendentesLocal = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
+    pendentesLocal.push({
+      id: Date.now(),
+      ...novoCadastro,
       pendente: true,
       dataCadastro: new Date().toISOString(),
       aprovado: false
-    };
+    });
+    localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesLocal));
 
-    // Salvar no servidor
-    await db.savePendente(novoCadastro);
-
-    alert(`✅ Cadastro realizado com sucesso!\n\n📧 Email: ${email}\n\n⏳ Aguarde a aprovação do administrador.\n\nVocê será notificado quando sua conta for ativada.`);
+    alert(`✅ Cadastro realizado com sucesso!\n\n📧 Email: ${email}\n\n⏳ Aguarde a aprovação do administrador.`);
 
     document.getElementById('form-cadastro').reset();
     mostrarTelaLogin();
+
   } catch (error) {
     console.error('❌ Erro ao cadastrar:', error);
     alert('❌ Erro ao realizar cadastro. Tente novamente.');

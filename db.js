@@ -1,14 +1,14 @@
 // ==========================================
-// BANCO DE DADOS - JSON SERVER (NUVEM)
+// BANCO DE DADOS - API POSTGRESQL (NUVEM)
 // ==========================================
 
-// 🔥 COLOQUE A URL DO SEU SERVIDOR NO RENDER
+// 🔥 SUBSTITUA PELA URL DO SEU SERVIDOR NO RENDER
 const API_URL = 'https://adegapdv-api.onrender.com';
 
 class Database {
   constructor() {
     this.isReady = true;
-    console.log('📦 Banco de dados JSON Server pronto!');
+    console.log('📦 Banco de dados PostgreSQL pronto!');
     console.log('🌐 API:', API_URL);
   }
 
@@ -43,6 +43,62 @@ class Database {
   }
 
   // ==========================================
+  // USUÁRIOS
+  // ==========================================
+
+  async getAllUsuarios() {
+    const usuarios = await this.request('/usuarios');
+    return usuarios || [];
+  }
+
+  async saveUsuario(usuario) {
+    // Se tiver ID, atualiza, senão cria
+    if (usuario.id) {
+      return await this.request(`/usuarios/${usuario.id}`, 'PUT', usuario);
+    } else {
+      return await this.request('/usuarios', 'POST', usuario);
+    }
+  }
+
+  async deleteUsuario(id) {
+    return await this.request(`/usuarios/${id}`, 'DELETE');
+  }
+
+  // ==========================================
+  // ESTABELECIMENTOS
+  // ==========================================
+
+  async getAllEstabelecimentos() {
+    const estabelecimentos = await this.request('/estabelecimentos');
+    return estabelecimentos || [];
+  }
+
+  async saveEstabelecimento(estabelecimento) {
+    if (estabelecimento.id) {
+      return await this.request(`/estabelecimentos/${estabelecimento.id}`, 'PUT', estabelecimento);
+    } else {
+      return await this.request('/estabelecimentos', 'POST', estabelecimento);
+    }
+  }
+
+  // ==========================================
+  // PENDENTES
+  // ==========================================
+
+  async getAllPendentes() {
+    const pendentes = await this.request('/pendentes');
+    return pendentes || [];
+  }
+
+  async savePendente(pendente) {
+    return await this.request('/pendentes', 'POST', pendente);
+  }
+
+  async deletePendente(id) {
+    return await this.request(`/pendentes/${id}`, 'DELETE');
+  }
+
+  // ==========================================
   // PRODUTOS
   // ==========================================
 
@@ -58,23 +114,18 @@ class Database {
     const estabelecimentoId = this.getEstabelecimentoId();
     if (!estabelecimentoId) return null;
 
-    const existentes = await this.getAllProdutos();
-    const existente = existentes.find(p => p.id === produto.id);
-
-    if (existente) {
-      await this.request(`/produtos/${produto.id}`, 'PUT', produto);
+    if (produto.id) {
+      return await this.request(`/produtos/${produto.id}`, 'PUT', produto);
     } else {
-      await this.request('/produtos', 'POST', produto);
+      return await this.request('/produtos', 'POST', produto);
     }
-    
-    return produto;
   }
 
   async deleteProduto(id) {
     const estabelecimentoId = this.getEstabelecimentoId();
     if (!estabelecimentoId) return;
 
-    await this.request(`/produtos/${id}`, 'DELETE');
+    return await this.request(`/produtos/${id}`, 'DELETE');
   }
 
   // ==========================================
@@ -93,16 +144,11 @@ class Database {
     const estabelecimentoId = this.getEstabelecimentoId();
     if (!estabelecimentoId) return null;
 
-    const existentes = await this.getAllPedidos();
-    const existente = existentes.find(p => p.id === pedido.id);
-
-    if (existente) {
-      await this.request(`/pedidos/${pedido.id}`, 'PUT', pedido);
+    if (pedido.id) {
+      return await this.request(`/pedidos/${pedido.id}`, 'PUT', pedido);
     } else {
-      await this.request('/pedidos', 'POST', pedido);
+      return await this.request('/pedidos', 'POST', pedido);
     }
-    
-    return pedido;
   }
 
   // ==========================================
@@ -121,23 +167,18 @@ class Database {
     const estabelecimentoId = this.getEstabelecimentoId();
     if (!estabelecimentoId) return null;
 
-    const existentes = await this.getAllComandas();
-    const existente = existentes.find(c => c.id === comanda.id);
-
-    if (existente) {
-      await this.request(`/comandas/${comanda.id}`, 'PUT', comanda);
+    if (comanda.id) {
+      return await this.request(`/comandas/${comanda.id}`, 'PUT', comanda);
     } else {
-      await this.request('/comandas', 'POST', comanda);
+      return await this.request('/comandas', 'POST', comanda);
     }
-    
-    return comanda;
   }
 
   async deleteComanda(id) {
     const estabelecimentoId = this.getEstabelecimentoId();
     if (!estabelecimentoId) return;
 
-    await this.request(`/comandas/${id}`, 'DELETE');
+    return await this.request(`/comandas/${id}`, 'DELETE');
   }
 
   // ==========================================
@@ -156,16 +197,11 @@ class Database {
     const estabelecimentoId = this.getEstabelecimentoId();
     if (!estabelecimentoId) return null;
 
-    const existentes = await this.getAllMovimentacoes();
-    const existente = existentes.find(m => m.id === movimentacao.id);
-
-    if (existente) {
-      await this.request(`/movimentacoes/${movimentacao.id}`, 'PUT', movimentacao);
+    if (movimentacao.id) {
+      return await this.request(`/movimentacoes/${movimentacao.id}`, 'PUT', movimentacao);
     } else {
-      await this.request('/movimentacoes', 'POST', movimentacao);
+      return await this.request('/movimentacoes', 'POST', movimentacao);
     }
-    
-    return movimentacao;
   }
 
   // ==========================================
@@ -188,9 +224,9 @@ class Database {
     const existentes = await this.request(`/configuracoes?chave=${chave}&estabelecimentoId=${estabelecimentoId}`);
     
     if (existentes && existentes.length > 0) {
-      await this.request(`/configuracoes/${existentes[0].id}`, 'PUT', config);
+      return await this.request(`/configuracoes/${existentes[0].id}`, 'PUT', config);
     } else {
-      await this.request('/configuracoes', 'POST', config);
+      return await this.request('/configuracoes', 'POST', config);
     }
   }
 
@@ -211,120 +247,18 @@ class Database {
     if (!estabelecimentoId) return null;
 
     fechamento.estabelecimentoId = estabelecimentoId;
-    const result = await this.request('/fechamentos', 'POST', fechamento);
-    return result;
+    return await this.request('/fechamentos', 'POST', fechamento);
   }
-
-  // ==========================================
-  // USUÁRIOS (para o multi-tenant)
-  // ==========================================
-
-  async getAllUsuarios() {
-    const usuarios = await this.request('/usuarios');
-    return usuarios || [];
-  }
-
-  async saveUsuario(usuario) {
-    const existentes = await this.getAllUsuarios();
-    const existente = existentes.find(u => u.id === usuario.id);
-
-    if (existente) {
-      await this.request(`/usuarios/${usuario.id}`, 'PUT', usuario);
-    } else {
-      await this.request('/usuarios', 'POST', usuario);
-    }
-    
-    return usuario;
-  }
-
-  async deleteUsuario(id) {
-    await this.request(`/usuarios/${id}`, 'DELETE');
-  }
-
-  // ==========================================
-  // ESTABELECIMENTOS
-  // ==========================================
-
-  async getAllEstabelecimentos() {
-    const estabelecimentos = await this.request('/estabelecimentos');
-    return estabelecimentos || [];
-  }
-
-  async saveEstabelecimento(estabelecimento) {
-    const existentes = await this.getAllEstabelecimentos();
-    const existente = existentes.find(e => e.id === estabelecimento.id);
-
-    if (existente) {
-      await this.request(`/estabelecimentos/${estabelecimento.id}`, 'PUT', estabelecimento);
-    } else {
-      await this.request('/estabelecimentos', 'POST', estabelecimento);
-    }
-    
-    return estabelecimento;
-  }
-
-
 
   // ==========================================
   // BACKUP
   // ==========================================
 
   async fazerBackup() {
-    alert('📦 Seus dados já estão salvos na nuvem!\n\nNão precisa fazer backup manual.');
+    alert('📦 Seus dados já estão salvos no banco de dados PostgreSQL!\n\nNão precisa fazer backup manual.');
     console.log('✅ Dados já estão no servidor!');
   }
 
-  // ==========================================
-// CADASTROS PENDENTES
-// ==========================================
-
-async getAllPendentes() {
-  const pendentes = await this.request('/pendentes');
-  return pendentes || [];
-}
-
-async savePendente(pendente) {
-  const existentes = await this.getAllPendentes();
-  const existente = existentes.find(p => p.id === pendente.id);
-
-  if (existente) {
-    await this.request(`/pendentes/${pendente.id}`, 'PUT', pendente);
-  } else {
-    await this.request('/pendentes', 'POST', pendente);
-  }
-  
-  return pendente;
-}
-
-  // ==========================================
-  // CADASTROS PENDENTES
-  // ==========================================
-
-  async getAllPendentes() {
-    const pendentes = await this.request('/pendentes');
-    return pendentes || [];
-  }
-
-  async savePendente(pendente) {
-    const existentes = await this.getAllPendentes();
-    const existente = existentes.find(p => p.id === pendente.id);
-
-    if (existente) {
-      await this.request(`/pendentes/${pendente.id}`, 'PUT', pendente);
-    } else {
-      await this.request('/pendentes', 'POST', pendente);
-    }
-    
-    return pendente;
-  }
-
-  async deletePendente(id) {
-    await this.request(`/pendentes/${id}`, 'DELETE');
-  }
-
-async deletePendente(id) {
-  await this.request(`/pendentes/${id}`, 'DELETE');
-}
   // ==========================================
   // UTILITÁRIOS
   // ==========================================
@@ -340,11 +274,9 @@ async deletePendente(id) {
   }
 }
 
-
-
 // Instância global
 const db = new Database();
 
 window.db = db;
 
-console.log('✅ db.js (JSON Server) carregado com sucesso!');
+console.log('✅ db.js (PostgreSQL) carregado com sucesso!');
