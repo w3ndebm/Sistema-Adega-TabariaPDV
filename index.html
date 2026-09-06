@@ -13,151 +13,99 @@
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
 
-<!-- ========================================== -->
-<!-- TELA DE CADASTRO (PÚBLICA) -->
-<!-- ========================================== -->
-<div id="tela-cadastro" class="hidden min-h-screen flex items-center justify-center p-4">
-  <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
-    <div class="text-center">
-      <h1 class="text-2xl font-black text-white">Criar <span class="text-emerald-400">Conta</span></h1>
-      <p class="text-xs text-gray-400 mt-1">Cadastre-se para acessar o sistema</p>
-    </div>
-
-    <form id="form-cadastro" onsubmit="realizarCadastro(event)" class="space-y-4">
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">👤 Nome Completo *</label>
-        <input type="text" id="cadastro-nome" required placeholder="Seu nome" 
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+  <!-- ========================================== -->
+  <!-- TELA DE LOGIN MULTI-TENANT -->
+  <!-- ========================================== -->
+  <div id="tela-login" class="min-h-screen flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
+      <div class="text-center">
+        <h1 class="text-2xl font-black text-white">Adega & Tabacaria <span class="text-emerald-400">PDV</span></h1>
+        <p class="text-xs text-gray-400 mt-1">Sistema Multi-Tenant - Informe suas credenciais</p>
       </div>
 
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email *</label>
-        <input type="email" id="cadastro-email" required placeholder="seu@email.com" 
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+      <form id="form-login" onsubmit="realizarLoginMulti(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email</label>
+          <input type="email" id="login-email" required placeholder="seu@email.com" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha</label>
+          <input type="password" id="login-senha-multi" required placeholder="••••••••" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
+          🚀 Entrar no Sistema
+        </button>
+      </form>
+
+      <!-- BOTÃO CRIAR CONTA -->
+      <div class="text-center">
+        <button onclick="mostrarTelaCadastro()" class="text-emerald-400 hover:text-emerald-300 text-sm font-bold transition-colors">
+          📝 Não tem conta? Criar conta
+        </button>
       </div>
 
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha *</label>
-        <input type="password" id="cadastro-senha" required placeholder="••••••••" minlength="4"
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+      <div class="bg-gray-900 p-3 rounded-lg border border-gray-700/50 text-[11px] text-gray-400">
+        <p class="font-bold text-emerald-400">📌 Sistema Multi-Tenant</p>
+        <p class="text-gray-400 mt-1">Entre com suas credenciais fornecidas pelo administrador.</p>
       </div>
-
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">🔁 Confirmar Senha *</label>
-        <input type="password" id="cadastro-senha-confirm" required placeholder="••••••••" minlength="4"
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
-      </div>
-
-      <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 text-[10px] text-gray-400">
-        <p>📋 Ao se cadastrar, você concorda com os termos de uso.</p>
-        <p class="text-amber-400 mt-1">⏳ Seu cadastro será analisado pelo administrador.</p>
-      </div>
-
-      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
-        📝 Criar Conta
-      </button>
-    </form>
-
-    <div class="text-center text-xs text-gray-400">
-      Já tem uma conta? 
-      <button onclick="mostrarTelaLogin()" class="text-emerald-400 hover:underline font-bold">Faça login</button>
     </div>
   </div>
-</div>
 
-<!-- TELA DE LOGIN MULTI-TENANT -->
-<!-- ========================================== -->
-<!-- TELA DE LOGIN MULTI-TENANT -->
-<!-- ========================================== -->
-<div id="tela-login" class="min-h-screen flex items-center justify-center p-4">
-  <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
-    <div class="text-center">
-      <h1 class="text-2xl font-black text-white">Adega & Tabacaria <span class="text-emerald-400">PDV</span></h1>
-      <p class="text-xs text-gray-400 mt-1">Sistema Multi-Tenant - Informe suas credenciais</p>
-    </div>
-
-    <form id="form-login" onsubmit="realizarLoginMulti(event)" class="space-y-4">
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email</label>
-        <input type="email" id="login-email" required placeholder="seu@email.com" 
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+  <!-- ========================================== -->
+  <!-- TELA DE CADASTRO (PÚBLICA) -->
+  <!-- ========================================== -->
+  <div id="tela-cadastro" class="hidden min-h-screen flex items-center justify-center p-4">
+    <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
+      <div class="text-center">
+        <h1 class="text-2xl font-black text-white">Criar <span class="text-emerald-400">Conta</span></h1>
+        <p class="text-xs text-gray-400 mt-1">Cadastre-se para acessar o sistema</p>
       </div>
 
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha</label>
-        <input type="password" id="login-senha-multi" required placeholder="••••••••" 
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+      <form id="form-cadastro" onsubmit="realizarCadastro(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">👤 Nome Completo *</label>
+          <input type="text" id="cadastro-nome" required placeholder="Seu nome" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email *</label>
+          <input type="email" id="cadastro-email" required placeholder="seu@email.com" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha *</label>
+          <input type="password" id="cadastro-senha" required placeholder="••••••••" minlength="4"
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">🔁 Confirmar Senha *</label>
+          <input type="password" id="cadastro-senha-confirm" required placeholder="••••••••" minlength="4"
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 text-[10px] text-gray-400">
+          <p>📋 Ao se cadastrar, você concorda com os termos de uso.</p>
+          <p class="text-amber-400 mt-1">⏳ Seu cadastro será analisado pelo administrador.</p>
+        </div>
+
+        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
+          📝 Criar Conta
+        </button>
+      </form>
+
+      <div class="text-center text-xs text-gray-400">
+        Já tem uma conta? 
+        <button onclick="mostrarTelaLogin()" class="text-emerald-400 hover:underline font-bold">Faça login</button>
       </div>
-
-      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
-        🚀 Entrar no Sistema
-      </button>
-    </form>
-
-    <!-- BOTÃO CRIAR CONTA -->
-    <div class="text-center">
-      <button onclick="mostrarTelaCadastro()" class="text-emerald-400 hover:text-emerald-300 text-sm font-bold transition-colors">
-        📝 Não tem conta? Criar conta
-      </button>
-    </div>
-
-    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700/50 text-[11px] text-gray-400">
-      <p class="font-bold text-emerald-400">📌 Sistema Multi-Tenant</p>
-      <p class="text-gray-400 mt-1">Entre com suas credenciais fornecidas pelo administrador.</p>
-    </div>
-  </div>
-</div>
-<!-- ========================================== -->
-<!-- TELA DE CADASTRO (PÚBLICA) -->
-<!-- ========================================== -->
-<div id="tela-cadastro" class="hidden min-h-screen flex items-center justify-center p-4">
-  <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
-    <div class="text-center">
-      <h1 class="text-2xl font-black text-white">Criar <span class="text-emerald-400">Conta</span></h1>
-      <p class="text-xs text-gray-400 mt-1">Cadastre-se para acessar o sistema</p>
-    </div>
-
-    <form id="form-cadastro" onsubmit="realizarCadastro(event)" class="space-y-4">
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">👤 Nome Completo *</label>
-        <input type="text" id="cadastro-nome" required placeholder="Seu nome" 
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
-      </div>
-
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email *</label>
-        <input type="email" id="cadastro-email" required placeholder="seu@email.com" 
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
-      </div>
-
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha *</label>
-        <input type="password" id="cadastro-senha" required placeholder="••••••••" minlength="4"
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
-      </div>
-
-      <div>
-        <label class="block text-xs font-semibold text-gray-400 mb-1">🔁 Confirmar Senha *</label>
-        <input type="password" id="cadastro-senha-confirm" required placeholder="••••••••" minlength="4"
-               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
-      </div>
-
-      <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 text-[10px] text-gray-400">
-        <p>📋 Ao se cadastrar, você concorda com os termos de uso.</p>
-        <p class="text-amber-400 mt-1">⏳ Seu cadastro será analisado pelo administrador.</p>
-      </div>
-
-      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
-        📝 Criar Conta
-      </button>
-    </form>
-
-    <div class="text-center text-xs text-gray-400">
-      Já tem uma conta? 
-      <button onclick="mostrarTelaLogin()" class="text-emerald-400 hover:underline font-bold">Faça login</button>
     </div>
   </div>
-</div>
 
   <!-- ========================================== -->
   <!-- SISTEMA PRINCIPAL -->
@@ -174,19 +122,19 @@
       </div>
 
       <nav class="flex flex-wrap items-center gap-2 bg-gray-800 p-1.5 rounded-lg border border-gray-700" id="nav-principal">
-        <button onclick="mudarAba('pdv')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors" id="btn-pdv">Frente de Caixa</button>
-        <button onclick="mudarAba('comandas')" class="px-4 py-2 rounded text-xs font-bold text-amber-400 hover:bg-gray-700 transition-colors flex items-center gap-1" id="btn-comandas">🍹 Comandas / Mesas <span id="badge-comandas" class="bg-amber-500 text-gray-950 font-black px-1.5 py-0.5 rounded-full text-[10px]">0</span></button>
-        <button onclick="mudarAba('estoque')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors" id="btn-estoque">Estoque</button>
+        <button id="btn-pdv" onclick="mudarAba('pdv')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors">Frente de Caixa</button>
+        <button id="btn-comandas" onclick="mudarAba('comandas')" class="px-4 py-2 rounded text-xs font-bold text-amber-400 hover:bg-gray-700 transition-colors flex items-center gap-1">🍹 Comandas / Mesas <span id="badge-comandas" class="bg-amber-500 text-gray-950 font-black px-1.5 py-0.5 rounded-full text-[10px]">0</span></button>
+        <button id="btn-estoque" onclick="mudarAba('estoque')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors">Estoque</button>
         <button id="btn-aba-gerencia" onclick="mudarAba('gerencia')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors hidden">Dashboard / Lucros</button>
-        <button onclick="mudarAba('pedidos')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors" id="btn-pedidos">Histórico Pedidos</button>
-        <button onclick="abrirModalConfiguracoes()" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-xs font-bold transition-colors flex items-center gap-1" id="btn-configurar">⚙️ Configurar</button>
+        <button id="btn-pedidos" onclick="mudarAba('pedidos')" class="px-4 py-2 rounded text-xs font-bold text-white hover:bg-gray-700 transition-colors">Histórico Pedidos</button>
+        <button id="btn-configurar" onclick="abrirModalConfiguracoes()" class="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded text-xs font-bold transition-colors flex items-center gap-1">⚙️ Configurar</button>
         
-        <!-- BOTÃO ADMIN - SEMPRE VISÍVEL PARA SUPER ADMIN -->
-        <button onclick="abrirPainelAdmin()" class="px-3 py-2 bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 rounded text-xs font-bold transition-colors flex items-center gap-1" id="btn-admin">
+        <!-- BOTÃO ADMIN - SÓ APARECE PARA SUPER ADMIN -->
+        <button id="btn-admin" onclick="abrirPainelAdmin()" class="hidden px-3 py-2 bg-purple-900/40 hover:bg-purple-800/60 text-purple-300 rounded text-xs font-bold transition-colors flex items-center gap-1">
           👑 Admin
         </button>
         
-        <button onclick="logoutMulti()" class="px-3 py-2 bg-red-900/40 hover:bg-red-800/60 text-red-300 rounded text-xs font-bold transition-colors ml-2" id="btn-sair">Sair</button>
+        <button id="btn-sair" onclick="logoutMulti()" class="px-3 py-2 bg-red-900/40 hover:bg-red-800/60 text-red-300 rounded text-xs font-bold transition-colors ml-2">Sair</button>
       </nav>
     </header>
 
@@ -411,6 +359,108 @@
   </div>
 
   <!-- ========================================== -->
+  <!-- MODAL: PAINEL DE ADMINISTRAÇÃO (SUPER ADMIN) -->
+  <!-- ========================================== -->
+  <div id="modal-painel-admin" class="fixed inset-0 bg-black/90 hidden flex items-center justify-center p-4 z-[200]">
+    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-5xl space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      
+      <!-- CABEÇALHO -->
+      <div class="flex justify-between items-center border-b border-gray-700 pb-3">
+        <h3 class="font-bold text-white text-2xl flex items-center gap-2">
+          <span class="text-3xl">👑</span> Painel de Administração
+        </h3>
+        <button onclick="fecharPainelAdmin()" class="text-gray-400 hover:text-white text-3xl font-bold">×</button>
+      </div>
+      
+      <p class="text-xs text-gray-400">Gerencie estabelecimentos e usuários do sistema.</p>
+      
+      <!-- BOTÕES DE AÇÃO -->
+      <div class="flex flex-wrap gap-2 border-b border-gray-700 pb-3">
+        <button onclick="tenantManager.abrirModalNovoEstabelecimento()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+          🏢 + Novo Estabelecimento
+        </button>
+        <button onclick="tenantManager.abrirModalNovoUsuario()" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+          👤 + Novo Usuário
+        </button>
+        <button onclick="tenantManager.abrirModalPendentes()" class="bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+          ⏳ Pendentes (<span id="badge-pendentes">0</span>)
+        </button>
+        <button onclick="atualizarPainelAdmin()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+          🔄 Atualizar
+        </button>
+      </div>
+
+      <!-- ESTATÍSTICAS -->
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-emerald-400" id="admin-total-estabelecimentos">0</p>
+          <p class="text-[10px] text-gray-400">Estabelecimentos</p>
+        </div>
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-amber-400" id="admin-total-usuarios">0</p>
+          <p class="text-[10px] text-gray-400">Usuários</p>
+        </div>
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-blue-400" id="admin-total-ativos">0</p>
+          <p class="text-[10px] text-gray-400">Ativos</p>
+        </div>
+        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
+          <p class="text-2xl font-black text-purple-400" id="admin-total-premium">0</p>
+          <p class="text-[10px] text-gray-400">Premium</p>
+        </div>
+      </div>
+
+      <!-- TABELA DE ESTABELECIMENTOS -->
+      <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+        <h4 class="font-bold text-white text-sm mb-3">🏢 Estabelecimentos</h4>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-800 text-gray-400 uppercase">
+              <tr>
+                <th class="p-2">ID</th>
+                <th class="p-2">Nome</th>
+                <th class="p-2">Plano</th>
+                <th class="p-2">Usuários</th>
+                <th class="p-2">Status</th>
+                <th class="p-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="admin-lista-estabelecimentos"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TABELA DE USUÁRIOS -->
+      <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
+        <h4 class="font-bold text-white text-sm mb-3">👤 Usuários do Sistema</h4>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-800 text-gray-400 uppercase">
+              <tr>
+                <th class="p-2">ID</th>
+                <th class="p-2">Nome</th>
+                <th class="p-2">Email</th>
+                <th class="p-2">Cargo</th>
+                <th class="p-2">Estabelecimento</th>
+                <th class="p-2">Status</th>
+                <th class="p-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="admin-lista-usuarios"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- BOTÃO FECHAR -->
+      <div class="flex justify-end pt-2 border-t border-gray-700">
+        <button onclick="fecharPainelAdmin()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg text-xs font-bold text-white transition-colors">
+          Fechar Painel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
   <!-- MODAIS -->
   <!-- ========================================== -->
 
@@ -502,11 +552,13 @@
       <form onsubmit="event.preventDefault(); confirmarAdicionarCombo();" class="space-y-3">
         <div>
           <label class="block text-xs font-semibold text-gray-400 mb-1">Garrafa / Bebida Principal *</label>
-          <select id="combo-garrafa" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500"></select>
+          <select id="combo-garrafa" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500">
+          </select>
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-400 mb-1">Energético</label>
-          <select id="combo-energetico" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500"></select>
+          <select id="combo-energetico" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500">
+          </select>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
@@ -520,7 +572,8 @@
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-400 mb-1">Acompanhamento / Gelo</label>
-          <select id="combo-gelo" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500"></select>
+          <select id="combo-gelo" onchange="atualizarResumoCombo()" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-amber-500">
+          </select>
         </div>
         <div>
           <label class="block text-xs font-semibold text-gray-400 mb-1">Desconto Personalizado (R$)</label>
@@ -605,111 +658,6 @@
           <button type="submit" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">Salvar Configurações</button>
         </div>
       </form>
-    </div>
-  </div>
-
-  <!-- ========================================== -->
-  <!-- MODAL: PAINEL DE ADMINISTRAÇÃO (SUPER ADMIN) -->
-  <!-- ========================================== -->
-  <!-- CORRIGIDO: Removida a classe 'hidden' daqui -->
-  <div id="modal-painel-admin" class="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[200]" style="display: none;">
-    <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-5xl space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-      
-      <!-- CABEÇALHO -->
-      <div class="flex justify-between items-center border-b border-gray-700 pb-3">
-        <h3 class="font-bold text-white text-2xl flex items-center gap-2">
-          <span class="text-3xl">👑</span> Painel de Administração
-        </h3>
-        <button onclick="fecharPainelAdmin()" class="text-gray-400 hover:text-white text-3xl font-bold">×</button>
-      </div>
-      
-      <p class="text-xs text-gray-400">Gerencie estabelecimentos e usuários do sistema.</p>
-      
-      <!-- BOTÕES DE AÇÃO -->
-      <div class="flex flex-wrap gap-2 border-b border-gray-700 pb-3">
-        <button onclick="tenantManager.abrirModalNovoEstabelecimento()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          🏢 + Novo Estabelecimento
-        </button>
-        <button onclick="tenantManager.abrirModalNovoUsuario()" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          👤 + Novo Usuário
-        </button>
-        <button onclick="atualizarPainelAdmin()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          🔄 Atualizar
-        </button>
-        <button onclick="tenantManager.abrirModalPendentes()" class="bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          ⏳ Pendentes (<span id="badge-pendentes">0</span>)
-        </button>
-      </div>
-
-      <!-- ESTATÍSTICAS -->
-      <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
-          <p class="text-2xl font-black text-emerald-400" id="admin-total-estabelecimentos">0</p>
-          <p class="text-[10px] text-gray-400">Estabelecimentos</p>
-        </div>
-        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
-          <p class="text-2xl font-black text-amber-400" id="admin-total-usuarios">0</p>
-          <p class="text-[10px] text-gray-400">Usuários</p>
-        </div>
-        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
-          <p class="text-2xl font-black text-blue-400" id="admin-total-ativos">0</p>
-          <p class="text-[10px] text-gray-400">Ativos</p>
-        </div>
-        <div class="bg-gray-900 p-3 rounded-xl border border-gray-700 text-center">
-          <p class="text-2xl font-black text-purple-400" id="admin-total-premium">0</p>
-          <p class="text-[10px] text-gray-400">Premium</p>
-        </div>
-      </div>
-
-      <!-- TABELA DE ESTABELECIMENTOS -->
-      <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
-        <h4 class="font-bold text-white text-sm mb-3">🏢 Estabelecimentos</h4>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-gray-800 text-gray-400 uppercase">
-              <tr>
-                <th class="p-2">ID</th>
-                <th class="p-2">Nome</th>
-                <th class="p-2">Plano</th>
-                <th class="p-2">Usuários</th>
-                <th class="p-2">Status</th>
-                <th class="p-2 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="admin-lista-estabelecimentos"></tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- TABELA DE USUÁRIOS -->
-      <div class="bg-gray-900 p-4 rounded-xl border border-gray-700">
-        <h4 class="font-bold text-white text-sm mb-3">👤 Usuários do Sistema</h4>
-        <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-gray-800 text-gray-400 uppercase">
-              <tr>
-                <th class="p-2">ID</th>
-                <th class="p-2">Nome</th>
-                <th class="p-2">Email</th>
-                <th class="p-2">Cargo</th>
-                <th class="p-2">Estabelecimento</th>
-                <th class="p-2">Status</th>
-                <th class="p-2 text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="admin-lista-usuarios"></tbody>
-          </table>
-        </div>
-      </div>
-
-      
-
-      <!-- BOTÃO FECHAR -->
-      <div class="flex justify-end pt-2 border-t border-gray-700">
-        <button onclick="fecharPainelAdmin()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg text-xs font-bold text-white transition-colors">
-          Fechar Painel
-        </button>
-      </div>
     </div>
   </div>
 
