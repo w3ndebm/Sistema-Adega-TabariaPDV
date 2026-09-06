@@ -14,32 +14,44 @@ class MultiTenantManager {
   // CARREGAR DADOS
   // ==========================================
 
-  carregarDados() {
-    const usuariosSalvos = localStorage.getItem('mt_usuarios');
-    const estabelecimentosSalvos = localStorage.getItem('mt_estabelecimentos');
-    
-    if (usuariosSalvos) {
-      this.usuarios = JSON.parse(usuariosSalvos);
+  // ==========================================
+// CARREGAR DADOS (VERSÃO COM SERVIDOR)
+// ==========================================
+
+async carregarDados() {
+  try {
+    // 1. Carregar usuários do servidor
+    const response = await fetch('https://adegapdv-api.onrender.com/usuarios');
+    if (response.ok) {
+      const usuariosDB = await response.json();
+      if (usuariosDB && usuariosDB.length > 0) {
+        this.usuarios = usuariosDB;
+        console.log('✅ Usuários carregados do servidor:', this.usuarios.length);
+        // Salvar no LocalStorage como cache
+        localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));
+      }
     } else {
-      this.usuarios = [
-        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null },
-        { id: 2, nome: "João Silva", email: "joao@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "admin", ativo: true, criadoPor: 1 },
-        { id: 3, nome: "Carlos Oliveira", email: "carlos@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "caixa", ativo: true, criadoPor: 2 },
-        { id: 4, nome: "Maria Santos", email: "maria@adegab.com", senha: "123", estabelecimentoId: 2, cargo: "admin", ativo: true, criadoPor: 1 }
-      ];
-      this.salvarUsuarios();
+      // Fallback para LocalStorage
+      this.carregarDoLocal();
     }
 
-    if (estabelecimentosSalvos) {
-      this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
+    // 2. Carregar estabelecimentos do servidor
+    const responseEstab = await fetch('https://adegapdv-api.onrender.com/estabelecimentos');
+    if (responseEstab.ok) {
+      const estabelecimentosDB = await responseEstab.json();
+      if (estabelecimentosDB && estabelecimentosDB.length > 0) {
+        this.estabelecimentos = estabelecimentosDB;
+        console.log('✅ Estabelecimentos carregados do servidor:', this.estabelecimentos.length);
+        localStorage.setItem('mt_estabelecimentos', JSON.stringify(this.estabelecimentos));
+      }
     } else {
-      this.estabelecimentos = [
-        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } },
-        { id: 2, nome: "Tabacaria da Maria", cnpj: "98.765.432/0001-10", endereco: "Av. Tabacaria, 456", telefone: "(11) 88888-8888", plano: "basico", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" } }
-      ];
-      this.salvarEstabelecimentos();
+      this.carregarDoLocal();
     }
+  } catch (error) {
+    console.error('❌ Erro ao carregar do servidor:', error);
+    this.carregarDoLocal();
   }
+}
 
   salvarUsuarios() {
     localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));
@@ -104,48 +116,172 @@ class MultiTenantManager {
   // LOGIN
   // ==========================================
 
-  login(email, senha) {
-    const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
-    
-    if (!usuario) {
-      return { success: false, message: "Email ou senha incorretos!" };
-    }
+  // ==========================================
+// LOGIN (VERSÃO COM SERVIDOR)
+// ==========================================
 
-    if (usuario.cargo === 'super_admin') {
-      const estabelecimentoVirtual = {
-        id: 999,
-        nome: "👑 SUPER ADMIN - Controle Total",
-        plano: "enterprise",
-        ativo: true,
-        configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
-        isVirtual: true
-      };
-      this.estabelecimentoAtual = estabelecimentoVirtual;
-      this.salvarSessao(usuario, estabelecimentoVirtual);
+async login(email, senha) {
+  console.log('🔐 Tentando login no servidor:', email);
+
+  try {
+    // 1. Tentar fazer login via API
+    const response = await fetch('https://adegapdv-api.onrender.com/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email: email.trim(),
+        senha: senha
+      })
+    });
+
+    const data = await response.json();
+    console.log('📡 Resposta da API:', data);
+
+    // 2. Se o login falhou
+    if (!response.ok || !data.success) {
+      // Fallback: tentar login local (LocalStorage)
+      console.log('⚠️ Tentando login local (fallback)...');
+      const usuarioLocal = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
+      
+      if (usuarioLocal) {
+        console.log('✅ Login local encontrado!');
+        return this.processarLogin(usuarioLocal);
+      }
+      
       return {
-        success: true,
-        usuario: usuario,
-        estabelecimento: estabelecimentoVirtual,
-        isSuperAdmin: true,
-        nivelAcesso: 'super_admin'
+        success: false,
+        message: data.error || 'Email ou senha incorretos!'
       };
     }
 
-    const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
-    if (!estabelecimento || !estabelecimento.ativo) {
-      return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
-    }
+    // 3. Login bem-sucedido via API
+    const usuario = data.usuario;
+    console.log('✅ Usuário encontrado no servidor:', usuario.nome);
 
-    this.estabelecimentoAtual = estabelecimento;
-    this.salvarSessao(usuario, estabelecimento);
+    return this.processarLogin(usuario);
+
+  } catch (error) {
+    console.error('❌ Erro ao conectar com o servidor:', error);
+    
+    // Fallback: tentar login local
+    console.log('⚠️ Servidor offline, tentando login local...');
+    const usuarioLocal = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
+    
+    if (usuarioLocal) {
+      console.log('✅ Login local encontrado!');
+      return this.processarLogin(usuarioLocal);
+    }
+    
+    return {
+      success: false,
+      message: 'Não foi possível conectar ao servidor. Verifique sua internet.'
+    };
+  }
+}
+
+// ==========================================
+// PROCESSAR LOGIN (separado para reuso)
+// ==========================================
+
+processarLogin(usuario) {
+  // SUPER ADMIN
+  if (usuario.cargo === 'super_admin') {
+    const estabelecimentoVirtual = {
+      id: 999,
+      nome: "👑 SUPER ADMIN - Controle Total",
+      plano: "enterprise",
+      ativo: true,
+      configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
+      isVirtual: true
+    };
+    this.estabelecimentoAtual = estabelecimentoVirtual;
+    this.salvarSessao(usuario, estabelecimentoVirtual);
     return {
       success: true,
       usuario: usuario,
-      estabelecimento: estabelecimento,
-      isSuperAdmin: false,
-      nivelAcesso: usuario.cargo
+      estabelecimento: estabelecimentoVirtual,
+      isSuperAdmin: true,
+      nivelAcesso: 'super_admin'
     };
   }
+
+  // USUÁRIO NORMAL
+  const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
+  if (!estabelecimento || !estabelecimento.ativo) {
+    return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
+  }
+
+  this.estabelecimentoAtual = estabelecimento;
+  this.salvarSessao(usuario, estabelecimento);
+  return {
+    success: true,
+    usuario: usuario,
+    estabelecimento: estabelecimento,
+    isSuperAdmin: false,
+    nivelAcesso: usuario.cargo
+  };
+}
+
+// ==========================================
+// CRIAR USUÁRIO (VERSÃO COM SERVIDOR)
+// ==========================================
+
+async criarUsuario(dados) {
+  const usuarioAtual = this.getUsuarioAtual();
+  const cargosPermitidos = this.getCargosPermitidos();
+  
+  if (!cargosPermitidos.includes(dados.cargo)) {
+    return { 
+      success: false, 
+      message: `Você não pode criar usuários com cargo "${dados.cargo}".` 
+    };
+  }
+
+  let estabelecimentoId = dados.estabelecimentoId;
+  if (usuarioAtual.cargo === 'admin') {
+    estabelecimentoId = usuarioAtual.estabelecimentoId;
+  }
+
+  if (this.usuarios.some(u => u.email === dados.email)) {
+    return { success: false, message: "Este email já está cadastrado!" };
+  }
+
+  const novoUsuario = {
+    id: Date.now(),
+    nome: dados.nome,
+    email: dados.email,
+    senha: dados.senha || "123456",
+    estabelecimentoId: estabelecimentoId,
+    cargo: dados.cargo,
+    ativo: true,
+    criadoPor: usuarioAtual.id,
+    criadoEm: new Date().toISOString()
+  };
+
+  // Salvar LocalStorage
+  this.usuarios.push(novoUsuario);
+  this.salvarUsuarios();
+
+  // Salvar no servidor (assíncrono)
+  try {
+    await fetch('https://adegapdv-api.onrender.com/usuarios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(novoUsuario)
+    });
+    console.log('✅ Usuário salvo no servidor!');
+  } catch (error) {
+    console.error('❌ Erro ao salvar no servidor:', error);
+  }
+  
+  return { 
+    success: true, 
+    usuario: novoUsuario,
+    message: `✅ Usuário "${dados.nome}" (${dados.cargo}) criado com sucesso!` 
+  };
+}
 
   // ==========================================
   // USUÁRIOS

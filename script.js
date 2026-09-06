@@ -1451,6 +1451,10 @@ a// ==========================================
 // LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
 // ==========================================
 
+// ==========================================
+// LOGIN MULTI-TENANT (VERSÃO COM SERVIDOR)
+// ==========================================
+
 async function realizarLoginMulti(e) {
   e.preventDefault();
   
@@ -1464,134 +1468,144 @@ async function realizarLoginMulti(e) {
 
   console.log('🔐 Tentando login:', email);
 
-  // CARREGAR DADOS ANTES DE TENTAR LOGAR
-  await tenantManager.carregarDados();
+  // Mostrar loading
+  const btnSubmit = e.target.querySelector('button[type="submit"]');
+  const textoOriginal = btnSubmit.innerText;
+  btnSubmit.innerText = '⏳ Carregando...';
+  btnSubmit.disabled = true;
 
-  // MOSTRAR USUÁRIOS DISPONÍVEIS
-  console.log('👤 Usuários disponíveis:', tenantManager.usuarios);
+  try {
+    // Carregar dados do servidor
+    await tenantManager.carregarDados();
 
-  // FAZER LOGIN
-  const resultado = tenantManager.login(email, senha);
+    // Fazer login (agora usa o servidor)
+    const resultado = await tenantManager.login(email, senha);
 
-  console.log('📊 Resultado do login:', resultado);
+    console.log('📊 Resultado do login:', resultado);
 
-  if (!resultado.success) {
-    alert(resultado.message);
-    return;
-  }
-
-  const { usuario, estabelecimento, isSuperAdmin } = resultado;
-
-  // Configurar usuário logado
-  usuarioLogado = {
-    usuario: usuario.email.split('@')[0],
-    senha: usuario.senha,
-    nome: usuario.nome,
-    cargo: usuario.cargo,
-    estabelecimentoId: estabelecimento.id,
-    estabelecimentoNome: estabelecimento.nome,
-    isSuperAdmin: isSuperAdmin || false
-  };
-
-  CONFIG_ESTABELECIMENTO = estabelecimento.configuracao || { totalMesas: 10, totalComandas: 30 };
-
-  document.getElementById("tela-login").classList.add("hidden");
-  document.getElementById("sistema-principal").classList.remove("hidden");
-
-  document.getElementById("nome-usuario-logado").innerText = usuarioLogado.nome;
-  document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
-  
-  const elEstabelecimento = document.getElementById("estabelecimento-nome");
-  if (elEstabelecimento) {
-    if (isSuperAdmin) {
-      elEstabelecimento.innerText = "👑 SUPER ADMIN - Controle Total";
-      elEstabelecimento.className = "font-bold text-purple-400";
-    } else {
-      elEstabelecimento.innerText = estabelecimento.nome;
-      elEstabelecimento.className = "font-bold text-amber-400";
+    if (!resultado.success) {
+      alert(resultado.message);
+      btnSubmit.innerText = textoOriginal;
+      btnSubmit.disabled = false;
+      return;
     }
-  }
 
-  const btnAdmin = document.getElementById('btn-admin');
-  if (btnAdmin) {
-    if (usuarioLogado.cargo === 'super_admin') {
-      btnAdmin.classList.remove('hidden');
-      btnAdmin.style.display = 'inline-flex';
-    } else {
+    // ... resto do código de login (igual ao que você já tem)
+    const { usuario, estabelecimento, isSuperAdmin } = resultado;
+
+    usuarioLogado = {
+      usuario: usuario.email.split('@')[0],
+      senha: usuario.senha,
+      nome: usuario.nome,
+      cargo: usuario.cargo,
+      estabelecimentoId: estabelecimento.id,
+      estabelecimentoNome: estabelecimento.nome,
+      isSuperAdmin: isSuperAdmin || false
+    };
+
+    CONFIG_ESTABELECIMENTO = estabelecimento.configuracao || { totalMesas: 10, totalComandas: 30 };
+
+    document.getElementById("tela-login").classList.add("hidden");
+    document.getElementById("sistema-principal").classList.remove("hidden");
+
+    document.getElementById("nome-usuario-logado").innerText = usuarioLogado.nome;
+    document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
+    
+    const elEstabelecimento = document.getElementById("estabelecimento-nome");
+    if (elEstabelecimento) {
+      if (isSuperAdmin) {
+        elEstabelecimento.innerText = "👑 SUPER ADMIN - Controle Total";
+        elEstabelecimento.className = "font-bold text-purple-400";
+      } else {
+        elEstabelecimento.innerText = estabelecimento.nome;
+        elEstabelecimento.className = "font-bold text-amber-400";
+      }
+    }
+
+    const btnAdmin = document.getElementById('btn-admin');
+    if (btnAdmin) {
+      if (usuarioLogado.cargo === 'super_admin') {
+        btnAdmin.classList.remove('hidden');
+        btnAdmin.style.display = 'inline-flex';
+      } else {
+        btnAdmin.classList.add('hidden');
+        btnAdmin.style.display = 'none';
+      }
+    }
+
+    if (isSuperAdmin) {
+      document.getElementById("aba-pdv").classList.add("hidden");
+      document.getElementById("aba-comandas").classList.add("hidden");
+      document.getElementById("aba-estoque").classList.add("hidden");
+      document.getElementById("aba-pedidos").classList.add("hidden");
+      document.getElementById("aba-gerencia").classList.add("hidden");
+      
+      const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
+      botoesParaEsconder.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.style.display = 'none';
+      });
+
+      if (btnAdmin) {
+        btnAdmin.classList.remove('hidden');
+        btnAdmin.style.display = 'inline-flex';
+      }
+
+      const btnSair = document.getElementById('btn-sair');
+      if (btnSair) btnSair.style.display = '';
+
+      setTimeout(() => {
+        tenantManager.abrirPainelAdmin();
+      }, 300);
+      
+      btnSubmit.innerText = textoOriginal;
+      btnSubmit.disabled = false;
+      return;
+    }
+
+    document.querySelectorAll('nav button').forEach(btn => {
+      btn.style.display = '';
+    });
+
+    if (btnAdmin) {
       btnAdmin.classList.add('hidden');
       btnAdmin.style.display = 'none';
     }
-  }
 
-  // ==========================================
-  // SUPER ADMIN - MOSTRA SÓ PAINEL ADMIN
-  // ==========================================
-  if (isSuperAdmin) {
-    document.getElementById("aba-pdv").classList.add("hidden");
+    document.getElementById("aba-pdv").classList.remove("hidden");
     document.getElementById("aba-comandas").classList.add("hidden");
     document.getElementById("aba-estoque").classList.add("hidden");
     document.getElementById("aba-pedidos").classList.add("hidden");
     document.getElementById("aba-gerencia").classList.add("hidden");
-    
-    const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
-    botoesParaEsconder.forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn) btn.style.display = 'none';
-    });
 
-    if (btnAdmin) {
-      btnAdmin.classList.remove('hidden');
-      btnAdmin.style.display = 'inline-flex';
+    const btnGerencia = document.getElementById("btn-aba-gerencia");
+    if (usuarioLogado.cargo === "gerente" || usuarioLogado.cargo === "admin") {
+      btnGerencia.classList.remove("hidden");
+    } else {
+      btnGerencia.classList.add("hidden");
     }
 
-    const btnSair = document.getElementById('btn-sair');
-    if (btnSair) btnSair.style.display = '';
+    await carregarDadosDoEstabelecimento();
 
-    setTimeout(() => {
-      tenantManager.abrirPainelAdmin();
-    }, 300);
+    renderizarProdutos();
+    renderizarCarrinho();
+    renderizarTabelaEstoque();
+    renderizarHistoricoPedidos();
+    renderizarDashboardGerencia();
+    renderizarComandas();
+    atualizarPainelDisponibilidade();
+
+    btnSubmit.innerText = textoOriginal;
+    btnSubmit.disabled = false;
     
-    console.log('👑 Super Admin logado - Painel Admin aberto!');
-    return;
+    console.log('✅ Login realizado com sucesso!');
+
+  } catch (error) {
+    console.error('❌ Erro no login:', error);
+    alert('❌ Erro ao fazer login. Tente novamente.');
+    btnSubmit.innerText = textoOriginal;
+    btnSubmit.disabled = false;
   }
-
-  // ==========================================
-  // USUÁRIO NORMAL - MOSTRA PDV
-  // ==========================================
-  
-  document.querySelectorAll('nav button').forEach(btn => {
-    btn.style.display = '';
-  });
-
-  if (btnAdmin) {
-    btnAdmin.classList.add('hidden');
-    btnAdmin.style.display = 'none';
-  }
-
-  document.getElementById("aba-pdv").classList.remove("hidden");
-  document.getElementById("aba-comandas").classList.add("hidden");
-  document.getElementById("aba-estoque").classList.add("hidden");
-  document.getElementById("aba-pedidos").classList.add("hidden");
-  document.getElementById("aba-gerencia").classList.add("hidden");
-
-  const btnGerencia = document.getElementById("btn-aba-gerencia");
-  if (usuarioLogado.cargo === "gerente" || usuarioLogado.cargo === "admin") {
-    btnGerencia.classList.remove("hidden");
-  } else {
-    btnGerencia.classList.add("hidden");
-  }
-
-  await carregarDadosDoEstabelecimento();
-
-  renderizarProdutos();
-  renderizarCarrinho();
-  renderizarTabelaEstoque();
-  renderizarHistoricoPedidos();
-  renderizarDashboardGerencia();
-  renderizarComandas();
-  atualizarPainelDisponibilidade();
-  
-  console.log('✅ Usuário normal logado com sucesso!');
 }
 // ==========================================
 // CARREGAR DADOS DO ESTABELECIMENTO
