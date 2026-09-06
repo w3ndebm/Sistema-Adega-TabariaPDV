@@ -14,44 +14,41 @@ class MultiTenantManager {
   // CARREGAR DADOS
   // ==========================================
 
-  // ==========================================
-// CARREGAR DADOS (VERSÃO COM SERVIDOR)
-// ==========================================
-
-async carregarDados() {
-  try {
-    // 1. Carregar usuários do servidor
-    const response = await fetch('https://adegapdv-api.onrender.com/usuarios');
-    if (response.ok) {
-      const usuariosDB = await response.json();
-      if (usuariosDB && usuariosDB.length > 0) {
-        this.usuarios = usuariosDB;
-        console.log('✅ Usuários carregados do servidor:', this.usuarios.length);
-        // Salvar no LocalStorage como cache
-        localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));
-      }
+  carregarDados() {
+    const usuariosSalvos = localStorage.getItem('mt_usuarios');
+    const estabelecimentosSalvos = localStorage.getItem('mt_estabelecimentos');
+    
+    if (usuariosSalvos) {
+      this.usuarios = JSON.parse(usuariosSalvos);
     } else {
-      // Fallback para LocalStorage
-      this.carregarDoLocal();
+      this.usuarios = [
+        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null },
+        { id: 2, nome: "João Silva", email: "joao@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "admin", ativo: true, criadoPor: 1 },
+        { id: 3, nome: "Carlos Oliveira", email: "carlos@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "caixa", ativo: true, criadoPor: 2 },
+        { id: 4, nome: "Maria Santos", email: "maria@adegab.com", senha: "123", estabelecimentoId: 2, cargo: "admin", ativo: true, criadoPor: 1 }
+      ];
+      this.salvarUsuarios();
     }
 
-    // 2. Carregar estabelecimentos do servidor
-    const responseEstab = await fetch('https://adegapdv-api.onrender.com/estabelecimentos');
-    if (responseEstab.ok) {
-      const estabelecimentosDB = await responseEstab.json();
-      if (estabelecimentosDB && estabelecimentosDB.length > 0) {
-        this.estabelecimentos = estabelecimentosDB;
-        console.log('✅ Estabelecimentos carregados do servidor:', this.estabelecimentos.length);
-        localStorage.setItem('mt_estabelecimentos', JSON.stringify(this.estabelecimentos));
-      }
+    if (estabelecimentosSalvos) {
+      this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
     } else {
-      this.carregarDoLocal();
+      this.estabelecimentos = [
+        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } },
+        { id: 2, nome: "Tabacaria da Maria", cnpj: "98.765.432/0001-10", endereco: "Av. Tabacaria, 456", telefone: "(11) 88888-8888", plano: "basico", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" } }
+      ];
+      this.salvarEstabelecimentos();
     }
-  } catch (error) {
-    console.error('❌ Erro ao carregar do servidor:', error);
-    this.carregarDoLocal();
+
+    console.log('📦 Dados carregados do LocalStorage:');
+    console.log('👤 Usuários:', this.usuarios.length);
+    console.log('🏢 Estabelecimentos:', this.estabelecimentos.length);
+    return this;
   }
-}
+
+  // ==========================================
+  // SALVAR DADOS
+  // ==========================================
 
   salvarUsuarios() {
     localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));
@@ -113,175 +110,59 @@ async carregarDados() {
   }
 
   // ==========================================
-  // LOGIN
+  // LOGIN (SOMENTE LOCALSTORAGE)
   // ==========================================
 
-  // ==========================================
-// LOGIN (VERSÃO COM SERVIDOR)
-// ==========================================
+  login(email, senha) {
+    console.log('🔐 Tentando login (LocalStorage):', email);
+    
+    this.carregarDados();
 
-async login(email, senha) {
-  console.log('🔐 Tentando login no servidor:', email);
+    const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
+    
+    if (!usuario) {
+      console.log('❌ Usuário não encontrado');
+      console.log('👤 Emails disponíveis:', this.usuarios.map(u => u.email));
+      return { success: false, message: "Email ou senha incorretos!" };
+    }
 
-  try {
-    // 1. Tentar fazer login via API
-    const response = await fetch('https://adegapdv-api.onrender.com/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email: email.trim(),
-        senha: senha
-      })
-    });
+    console.log('✅ Usuário encontrado:', usuario.nome);
 
-    const data = await response.json();
-    console.log('📡 Resposta da API:', data);
-
-    // 2. Se o login falhou
-    if (!response.ok || !data.success) {
-      // Fallback: tentar login local (LocalStorage)
-      console.log('⚠️ Tentando login local (fallback)...');
-      const usuarioLocal = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
-      
-      if (usuarioLocal) {
-        console.log('✅ Login local encontrado!');
-        return this.processarLogin(usuarioLocal);
-      }
-      
+    if (usuario.cargo === 'super_admin') {
+      const estabelecimentoVirtual = {
+        id: 999,
+        nome: "👑 SUPER ADMIN - Controle Total",
+        plano: "enterprise",
+        ativo: true,
+        configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
+        isVirtual: true
+      };
+      this.estabelecimentoAtual = estabelecimentoVirtual;
+      this.salvarSessao(usuario, estabelecimentoVirtual);
       return {
-        success: false,
-        message: data.error || 'Email ou senha incorretos!'
+        success: true,
+        usuario: usuario,
+        estabelecimento: estabelecimentoVirtual,
+        isSuperAdmin: true,
+        nivelAcesso: 'super_admin'
       };
     }
 
-    // 3. Login bem-sucedido via API
-    const usuario = data.usuario;
-    console.log('✅ Usuário encontrado no servidor:', usuario.nome);
-
-    return this.processarLogin(usuario);
-
-  } catch (error) {
-    console.error('❌ Erro ao conectar com o servidor:', error);
-    
-    // Fallback: tentar login local
-    console.log('⚠️ Servidor offline, tentando login local...');
-    const usuarioLocal = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
-    
-    if (usuarioLocal) {
-      console.log('✅ Login local encontrado!');
-      return this.processarLogin(usuarioLocal);
+    const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
+    if (!estabelecimento || !estabelecimento.ativo) {
+      return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
     }
-    
-    return {
-      success: false,
-      message: 'Não foi possível conectar ao servidor. Verifique sua internet.'
-    };
-  }
-}
 
-// ==========================================
-// PROCESSAR LOGIN (separado para reuso)
-// ==========================================
-
-processarLogin(usuario) {
-  // SUPER ADMIN
-  if (usuario.cargo === 'super_admin') {
-    const estabelecimentoVirtual = {
-      id: 999,
-      nome: "👑 SUPER ADMIN - Controle Total",
-      plano: "enterprise",
-      ativo: true,
-      configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
-      isVirtual: true
-    };
-    this.estabelecimentoAtual = estabelecimentoVirtual;
-    this.salvarSessao(usuario, estabelecimentoVirtual);
+    this.estabelecimentoAtual = estabelecimento;
+    this.salvarSessao(usuario, estabelecimento);
     return {
       success: true,
       usuario: usuario,
-      estabelecimento: estabelecimentoVirtual,
-      isSuperAdmin: true,
-      nivelAcesso: 'super_admin'
+      estabelecimento: estabelecimento,
+      isSuperAdmin: false,
+      nivelAcesso: usuario.cargo
     };
   }
-
-  // USUÁRIO NORMAL
-  const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
-  if (!estabelecimento || !estabelecimento.ativo) {
-    return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
-  }
-
-  this.estabelecimentoAtual = estabelecimento;
-  this.salvarSessao(usuario, estabelecimento);
-  return {
-    success: true,
-    usuario: usuario,
-    estabelecimento: estabelecimento,
-    isSuperAdmin: false,
-    nivelAcesso: usuario.cargo
-  };
-}
-
-// ==========================================
-// CRIAR USUÁRIO (VERSÃO COM SERVIDOR)
-// ==========================================
-
-async criarUsuario(dados) {
-  const usuarioAtual = this.getUsuarioAtual();
-  const cargosPermitidos = this.getCargosPermitidos();
-  
-  if (!cargosPermitidos.includes(dados.cargo)) {
-    return { 
-      success: false, 
-      message: `Você não pode criar usuários com cargo "${dados.cargo}".` 
-    };
-  }
-
-  let estabelecimentoId = dados.estabelecimentoId;
-  if (usuarioAtual.cargo === 'admin') {
-    estabelecimentoId = usuarioAtual.estabelecimentoId;
-  }
-
-  if (this.usuarios.some(u => u.email === dados.email)) {
-    return { success: false, message: "Este email já está cadastrado!" };
-  }
-
-  const novoUsuario = {
-    id: Date.now(),
-    nome: dados.nome,
-    email: dados.email,
-    senha: dados.senha || "123456",
-    estabelecimentoId: estabelecimentoId,
-    cargo: dados.cargo,
-    ativo: true,
-    criadoPor: usuarioAtual.id,
-    criadoEm: new Date().toISOString()
-  };
-
-  // Salvar LocalStorage
-  this.usuarios.push(novoUsuario);
-  this.salvarUsuarios();
-
-  // Salvar no servidor (assíncrono)
-  try {
-    await fetch('https://adegapdv-api.onrender.com/usuarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(novoUsuario)
-    });
-    console.log('✅ Usuário salvo no servidor!');
-  } catch (error) {
-    console.error('❌ Erro ao salvar no servidor:', error);
-  }
-  
-  return { 
-    success: true, 
-    usuario: novoUsuario,
-    message: `✅ Usuário "${dados.nome}" (${dados.cargo}) criado com sucesso!` 
-  };
-}
 
   // ==========================================
   // USUÁRIOS
@@ -446,7 +327,7 @@ async criarUsuario(dados) {
   }
 
   // ==========================================
-  // TOGGLE ESTABELECIMENTO (DESATIVAR/ATIVAR)
+  // TOGGLE ESTABELECIMENTO
   // ==========================================
 
   toggleEstabelecimentoStatus(id) {
@@ -522,75 +403,85 @@ async criarUsuario(dados) {
     // Renderizar estabelecimentos
     const tbodyEstab = document.getElementById('admin-lista-estabelecimentos');
     if (tbodyEstab) {
-      tbodyEstab.innerHTML = this.estabelecimentos.map(e => `
-        <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
-          <td class="p-2 text-gray-400">${e.id}</td>
-          <td class="p-2 font-bold text-white">${e.nome}</td>
-          <td class="p-2">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.plano === 'enterprise' ? 'bg-purple-950 text-purple-400 border border-purple-800' : e.plano === 'premium' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
-              ${e.plano.toUpperCase()}
-            </span>
-          </td>
-          <td class="p-2 text-gray-400">${this.usuarios.filter(u => u.estabelecimentoId === e.id).length}</td>
-          <td class="p-2">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
-              ${e.ativo ? '🟢 Ativo' : '🔴 Inativo'}
-            </span>
-          </td>
-          <td class="p-2 text-right">
-            <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
-              ${e.ativo ? 'Desativar' : 'Ativar'}
-            </button>
-          </td>
-        </tr>
-      `).join('');
+      if (this.estabelecimentos.length === 0) {
+        tbodyEstab.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Nenhum estabelecimento cadastrado.</td></tr>`;
+      } else {
+        tbodyEstab.innerHTML = this.estabelecimentos.map(e => `
+          <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+            <td class="p-2 text-gray-400">${e.id}</td>
+            <td class="p-2 font-bold text-white">${e.nome}</td>
+            <td class="p-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.plano === 'enterprise' ? 'bg-purple-950 text-purple-400 border border-purple-800' : e.plano === 'premium' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
+                ${e.plano.toUpperCase()}
+              </span>
+            </td>
+            <td class="p-2 text-gray-400">${this.usuarios.filter(u => u.estabelecimentoId === e.id).length}</td>
+            <td class="p-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
+                ${e.ativo ? '🟢 Ativo' : '🔴 Inativo'}
+              </span>
+            </td>
+            <td class="p-2 text-right">
+              <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
+                ${e.ativo ? 'Desativar' : 'Ativar'}
+              </button>
+            </td>
+          </tr>
+        `).join('');
+      }
     }
 
     // Renderizar usuários
     const tbodyUser = document.getElementById('admin-lista-usuarios');
     if (tbodyUser) {
-      tbodyUser.innerHTML = this.usuarios.map(u => {
-        const cargoLabel = {
-          'super_admin': '👑 Super Admin',
-          'admin': '🏢 Admin',
-          'gerente': '📋 Gerente',
-          'caixa': '💰 Caixa'
-        }[u.cargo] || u.cargo;
-        
-        const isSuperAdmin = u.cargo === 'super_admin';
-        const estabNome = u.estabelecimentoId ? 
-          this.estabelecimentos.find(e => e.id === u.estabelecimentoId)?.nome || 'N/A' : 
-          'Sistema';
-        
-        return `
-          <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
-            <td class="p-2 text-gray-400">${u.id}</td>
-            <td class="p-2 font-bold text-white">${u.nome}</td>
-            <td class="p-2 text-gray-300">${u.email}</td>
-            <td class="p-2">
-              <span class="text-[10px] font-bold ${u.cargo === 'super_admin' ? 'text-purple-400' : u.cargo === 'admin' ? 'text-amber-400' : u.cargo === 'gerente' ? 'text-blue-400' : 'text-gray-400'}">
-                ${cargoLabel}
-              </span>
-            </td>
-            <td class="p-2 text-gray-400 text-[10px]">${estabNome}</td>
-            <td class="p-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
-                ${u.ativo ? '🟢 Ativo' : '🔴 Inativo'}
-              </span>
-            </td>
-            <td class="p-2 text-right space-x-1">
-              ${!isSuperAdmin ? `
-                <button onclick="tenantManager.abrirModalEditarUsuario(${u.id})" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded text-[10px] text-white" title="Editar">✏️</button>
-                <button onclick="tenantManager.toggleUsuarioStatus(${u.id})" class="${u.ativo ? 'bg-amber-700 hover:bg-amber-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white" title="Alterar Status">
-                  ${u.ativo ? '⏸️' : '▶️'}
-                </button>
-                <button onclick="tenantManager.excluirUsuario(${u.id})" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 rounded text-[10px] text-white" title="Excluir">🗑️</button>
-              ` : '<span class="text-purple-400 text-[10px] font-bold">👑</span>'}
-            </td>
-          </tr>
-        `;
-      }).join('');
+      if (this.usuarios.length === 0) {
+        tbodyUser.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">Nenhum usuário cadastrado.</td></tr>`;
+      } else {
+        tbodyUser.innerHTML = this.usuarios.map(u => {
+          const cargoLabel = {
+            'super_admin': '👑 Super Admin',
+            'admin': '🏢 Admin',
+            'gerente': '📋 Gerente',
+            'caixa': '💰 Caixa'
+          }[u.cargo] || u.cargo;
+          
+          const isSuperAdmin = u.cargo === 'super_admin';
+          const estabNome = u.estabelecimentoId ? 
+            this.estabelecimentos.find(e => e.id === u.estabelecimentoId)?.nome || 'N/A' : 
+            'Sistema';
+          
+          return `
+            <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+              <td class="p-2 text-gray-400">${u.id}</td>
+              <td class="p-2 font-bold text-white">${u.nome}</td>
+              <td class="p-2 text-gray-300">${u.email}</td>
+              <td class="p-2">
+                <span class="text-[10px] font-bold ${u.cargo === 'super_admin' ? 'text-purple-400' : u.cargo === 'admin' ? 'text-amber-400' : u.cargo === 'gerente' ? 'text-blue-400' : 'text-gray-400'}">
+                  ${cargoLabel}
+                </span>
+              </td>
+              <td class="p-2 text-gray-400 text-[10px]">${estabNome}</td>
+              <td class="p-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
+                  ${u.ativo ? '🟢 Ativo' : '🔴 Inativo'}
+                </span>
+              </td>
+              <td class="p-2 text-right space-x-1">
+                ${!isSuperAdmin ? `
+                  <button onclick="tenantManager.abrirModalEditarUsuario(${u.id})" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded text-[10px] text-white" title="Editar">✏️</button>
+                  <button onclick="tenantManager.toggleUsuarioStatus(${u.id})" class="${u.ativo ? 'bg-amber-700 hover:bg-amber-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white" title="Alterar Status">
+                    ${u.ativo ? '⏸️' : '▶️'}
+                  </button>
+                  <button onclick="tenantManager.excluirUsuario(${u.id})" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 rounded text-[10px] text-white" title="Excluir">🗑️</button>
+                ` : '<span class="text-purple-400 text-[10px] font-bold">👑</span>'}
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
     }
+    
+    console.log('✅ Painel Admin atualizado!');
   }
 
   // ==========================================
@@ -866,32 +757,57 @@ async criarUsuario(dados) {
       return;
     }
 
-    // Criar estabelecimento
-    const resultado = this.criarEstabelecimento(dados);
-    if (!resultado.success) {
-      alert('❌ ' + resultado.message);
+    // Verificar se email já existe
+    if (this.usuarios.some(u => u.email === dados.emailAdmin)) {
+      alert('❌ Este email já está cadastrado!');
       return;
     }
 
-    // Criar usuário admin
-    const novoUsuario = {
-      id: Date.now(),
-      nome: dados.nomeAdmin,
-      email: dados.emailAdmin,
-      senha: dados.senhaAdmin,
-      estabelecimentoId: resultado.estabelecimento.id,
-      cargo: 'admin',
-      ativo: true,
-      criadoPor: this.getUsuarioAtual().id,
-      criadoEm: new Date().toISOString()
-    };
+    // Desabilitar botão
+    const btnSubmit = e.target.querySelector('button[type="submit"]');
+    const textoOriginal = btnSubmit.innerText;
+    btnSubmit.innerText = '⏳ Criando...';
+    btnSubmit.disabled = true;
 
-    this.usuarios.push(novoUsuario);
-    this.salvarUsuarios();
+    try {
+      // Criar estabelecimento
+      const resultado = this.criarEstabelecimento(dados);
+      
+      if (!resultado.success) {
+        alert('❌ ' + resultado.message);
+        btnSubmit.innerText = textoOriginal;
+        btnSubmit.disabled = false;
+        return;
+      }
 
-    alert(`✅ Estabelecimento "${dados.nome}" criado com sucesso!\n\n📧 Email: ${dados.emailAdmin}\n🔑 Senha: ${dados.senhaAdmin}`);
-    document.getElementById('modal-novo-estabelecimento')?.remove();
-    this.atualizarPainelAdmin();
+      // Criar usuário admin
+      const novoUsuario = {
+        id: Date.now(),
+        nome: dados.nomeAdmin,
+        email: dados.emailAdmin,
+        senha: dados.senhaAdmin,
+        estabelecimentoId: resultado.estabelecimento.id,
+        cargo: 'admin',
+        ativo: true,
+        criadoPor: this.getUsuarioAtual().id,
+        criadoEm: new Date().toISOString()
+      };
+
+      this.usuarios.push(novoUsuario);
+      this.salvarUsuarios();
+
+      alert(`✅ Estabelecimento "${dados.nome}" criado com sucesso!\n\n📧 Email: ${dados.emailAdmin}\n🔑 Senha: ${dados.senhaAdmin}`);
+
+      document.getElementById('modal-novo-estabelecimento')?.remove();
+      this.atualizarPainelAdmin();
+
+    } catch (error) {
+      console.error('❌ Erro:', error);
+      alert('❌ Erro ao criar estabelecimento. Tente novamente.');
+    }
+
+    btnSubmit.innerText = textoOriginal;
+    btnSubmit.disabled = false;
   }
 
   // ==========================================
@@ -906,14 +822,7 @@ async criarUsuario(dados) {
     }
 
     try {
-      // Tentar buscar do servidor, se falhar usa LocalStorage
-      let pendentes = [];
-      try {
-        pendentes = await db.getAllPendentes() || [];
-      } catch (e) {
-        pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      }
-
+      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
       const badge = document.getElementById('badge-pendentes');
       if (badge) badge.innerText = pendentes.length;
 
@@ -961,13 +870,7 @@ async criarUsuario(dados) {
 
   async aprovarCadastro(index) {
     try {
-      let pendentes = [];
-      try {
-        pendentes = await db.getAllPendentes() || [];
-      } catch (e) {
-        pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      }
-
+      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
       const cadastro = pendentes[index];
       if (!cadastro) {
         alert('Cadastro não encontrado!');
@@ -1018,13 +921,7 @@ async criarUsuario(dados) {
   async confirmarAprovacao(e, index) {
     e.preventDefault();
     try {
-      let pendentes = [];
-      try {
-        pendentes = await db.getAllPendentes() || [];
-      } catch (e) {
-        pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      }
-
+      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
       const cadastro = pendentes[index];
       if (!cadastro) {
         alert('Cadastro não encontrado!');
@@ -1051,12 +948,7 @@ async criarUsuario(dados) {
 
       // Remover dos pendentes
       const pendentesAtualizados = pendentes.filter(p => p.id !== cadastro.id);
-      
-      try {
-        await db.deletePendente(cadastro.id);
-      } catch (e) {
-        localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesAtualizados));
-      }
+      localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesAtualizados));
 
       const mensagem = `
 ✅ CONTA APROVADA!
@@ -1087,13 +979,7 @@ async criarUsuario(dados) {
 
   async reprovarCadastro(index) {
     try {
-      let pendentes = [];
-      try {
-        pendentes = await db.getAllPendentes() || [];
-      } catch (e) {
-        pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      }
-
+      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
       const cadastro = pendentes[index];
       if (!cadastro) {
         alert('Cadastro não encontrado!');
@@ -1102,12 +988,7 @@ async criarUsuario(dados) {
 
       if (confirm(`❌ Reprovar "${cadastro.nome}"?`)) {
         const pendentesAtualizados = pendentes.filter(p => p.id !== cadastro.id);
-        
-        try {
-          await db.deletePendente(cadastro.id);
-        } catch (e) {
-          localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesAtualizados));
-        }
+        localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesAtualizados));
 
         document.getElementById('modal-pendentes')?.remove();
         this.atualizarPainelAdmin();
