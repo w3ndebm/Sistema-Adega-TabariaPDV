@@ -1,5 +1,3 @@
-const API_URL = 'https://adegapdv-api.onrender.com';
-
 // ==========================================
 // MULTI-TENANT - SISTEMA PARA VÁRIAS ADEGAS
 // ==========================================
@@ -18,7 +16,6 @@ class MultiTenantManager {
 
   async carregarDados() {
     try {
-      // Carregar usuários do servidor
       const usuariosDB = await db.getAllUsuarios();
       if (usuariosDB && usuariosDB.length > 0) {
         this.usuarios = usuariosDB;
@@ -27,7 +24,6 @@ class MultiTenantManager {
         this.carregarDoLocal();
       }
 
-      // Carregar estabelecimentos do servidor
       const estabelecimentosDB = await db.getAllEstabelecimentos();
       if (estabelecimentosDB && estabelecimentosDB.length > 0) {
         this.estabelecimentos = estabelecimentosDB;
@@ -48,13 +44,23 @@ class MultiTenantManager {
     if (usuariosSalvos) {
       this.usuarios = JSON.parse(usuariosSalvos);
     } else {
-      this.usuarios = [];
+      this.usuarios = [
+        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null },
+        { id: 2, nome: "João Silva", email: "joao@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "admin", ativo: true, criadoPor: 1 },
+        { id: 3, nome: "Carlos Oliveira", email: "carlos@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "caixa", ativo: true, criadoPor: 2 },
+        { id: 4, nome: "Maria Santos", email: "maria@adegab.com", senha: "123", estabelecimentoId: 2, cargo: "admin", ativo: true, criadoPor: 1 }
+      ];
+      this.salvarUsuarios();
     }
 
     if (estabelecimentosSalvos) {
       this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
     } else {
-      this.estabelecimentos = [];
+      this.estabelecimentos = [
+        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } },
+        { id: 2, nome: "Tabacaria da Maria", cnpj: "98.765.432/0001-10", endereco: "Av. Tabacaria, 456", telefone: "(11) 88888-8888", plano: "basico", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" } }
+      ];
+      this.salvarEstabelecimentos();
     }
   }
 
@@ -87,128 +93,110 @@ class MultiTenantManager {
   }
 
   // ==========================================
-  // LOGIN
+  // SESSÃO
   // ==========================================
 
-  async login(email, senha) {
-  console.log('🔐 Tentando login:', email);
+  salvarSessao(usuario, estabelecimento) {
+    const sessao = {
+      usuarioId: usuario.id,
+      estabelecimentoId: estabelecimento.id,
+      estabelecimentoNome: estabelecimento.nome,
+      isSuperAdmin: usuario.cargo === 'super_admin',
+      cargo: usuario.cargo,
+      login: new Date().toISOString()
+    };
+    localStorage.setItem('mt_sessao_atual', JSON.stringify(sessao));
+  }
 
-  try {
-    const response = await fetch(
-      'https://adegapdv-api.onrender.com/login',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: email.trim(),
-          senha: senha
-        })
-      }
-    );
+  getSessaoAtual() {
+    const sessao = localStorage.getItem('mt_sessao_atual');
+    if (!sessao) return null;
+    return JSON.parse(sessao);
+  }
 
-    const data = await response.json();
+  getUsuarioAtual() {
+    const sessao = this.getSessaoAtual();
+    if (!sessao) return null;
+    return this.usuarios.find(u => u.id === sessao.usuarioId);
+  }
 
-    console.log('📡 Resposta da API:', data);
+  getEstabelecimentoAtual() {
+    if (this.estabelecimentoAtual) return this.estabelecimentoAtual;
+    const sessao = this.getSessaoAtual();
+    if (!sessao) return null;
+    if (sessao.isSuperAdmin) {
+      const virtual = { id: 999, nome: "👑 SUPER ADMIN - Controle Total", plano: "enterprise", ativo: true, configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" }, isVirtual: true };
+      this.estabelecimentoAtual = virtual;
+      return virtual;
+    }
+    const estabelecimento = this.estabelecimentos.find(e => e.id === sessao.estabelecimentoId);
+    this.estabelecimentoAtual = estabelecimento;
+    return estabelecimento;
+  }
 
-    if (!response.ok || !data.success) {
-      console.log('❌ Login recusado');
+  logout() {
+    this.estabelecimentoAtual = null;
+    localStorage.removeItem('mt_sessao_atual');
+    document.body.classList.remove('super-admin-mode');
+    document.querySelectorAll('nav button').forEach(btn => {
+      btn.style.display = '';
+    });
+  }
 
-      return {
-        success: false,
-        message: data.error || 'Email ou senha incorretos!'
-      };
+  // ==========================================
+  // LOGIN (VERSÃO CORRIGIDA - SÍNCRONA)
+  // ==========================================
+
+  login(email, senha) {
+    console.log('🔐 Tentando login local:', email);
+    
+    // Buscar usuário na lista local
+    const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
+    
+    if (!usuario) {
+      console.log('❌ Usuário não encontrado localmente');
+      return { success: false, message: "Email ou senha incorretos!" };
     }
 
-    const usuario = data.usuario;
-
-    console.log(
-      '✅ Usuário encontrado:',
-      usuario.nome,
-      'Cargo:',
-      usuario.cargo
-    );
+    console.log('✅ Usuário encontrado:', usuario.nome, 'Cargo:', usuario.cargo);
 
     // SUPER ADMIN
     if (usuario.cargo === 'super_admin') {
-
       const estabelecimentoVirtual = {
         id: 999,
-        nome: '👑 SUPER ADMIN - Controle Total',
-        plano: 'enterprise',
+        nome: "👑 SUPER ADMIN - Controle Total",
+        plano: "enterprise",
         ativo: true,
-        configuracao: {
-          totalMesas: 999,
-          totalComandas: 999,
-          corTema: 'purple'
-        },
+        configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" },
         isVirtual: true
       };
-
       this.estabelecimentoAtual = estabelecimentoVirtual;
-
-      this.salvarSessao(
-        usuario,
-        estabelecimentoVirtual
-      );
-
+      this.salvarSessao(usuario, estabelecimentoVirtual);
       return {
         success: true,
         usuario: usuario,
         estabelecimento: estabelecimentoVirtual,
-        isSuperAdmin: true
+        isSuperAdmin: true,
+        nivelAcesso: 'super_admin'
       };
     }
 
     // USUÁRIO NORMAL
-    const estabelecimento = this.estabelecimentos.find(
-      e => Number(e.id) === Number(usuario.estabelecimentoId)
-    );
-
-    if (!estabelecimento) {
-      console.log(
-        '❌ Estabelecimento não encontrado:',
-        usuario.estabelecimentoId
-      );
-
-      return {
-        success: false,
-        message: 'Estabelecimento não encontrado ou inativo!'
-      };
-    }
-
-    if (!estabelecimento.ativo) {
-      return {
-        success: false,
-        message: 'Estabelecimento inativo!'
-      };
+    const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
+    if (!estabelecimento || !estabelecimento.ativo) {
+      return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
     }
 
     this.estabelecimentoAtual = estabelecimento;
-
-    this.salvarSessao(
-      usuario,
-      estabelecimento
-    );
-
+    this.salvarSessao(usuario, estabelecimento);
     return {
       success: true,
       usuario: usuario,
       estabelecimento: estabelecimento,
-      isSuperAdmin: false
-    };
-
-  } catch (error) {
-
-    console.error('❌ Erro ao conectar com a API:', error);
-
-    return {
-      success: false,
-      message: 'Não foi possível conectar ao servidor.'
+      isSuperAdmin: false,
+      nivelAcesso: usuario.cargo
     };
   }
-}
 
   // ==========================================
   // USUÁRIOS
@@ -225,7 +213,6 @@ class MultiTenantManager {
   criarUsuario(dados) {
     const usuarioAtual = this.getUsuarioAtual();
     const cargosPermitidos = this.getCargosPermitidos();
-    
     if (!cargosPermitidos.includes(dados.cargo)) {
       return { success: false, message: `Você não pode criar usuários com cargo "${dados.cargo}".` };
     }
@@ -269,13 +256,11 @@ class MultiTenantManager {
   editarUsuario(id, dados) {
     const usuario = this.usuarios.find(u => u.id === id);
     if (!usuario) return { success: false, message: "Usuário não encontrado!" };
-    
     if (dados.nome) usuario.nome = dados.nome;
     if (dados.senha) usuario.senha = dados.senha;
     if (dados.ativo !== undefined) usuario.ativo = dados.ativo;
     if (dados.cargo) usuario.cargo = dados.cargo;
     if (dados.estabelecimentoId !== undefined) usuario.estabelecimentoId = dados.estabelecimentoId;
-    
     this.salvarUsuarios();
     return { success: true, message: "✅ Usuário atualizado!" };
   }
@@ -623,20 +608,8 @@ class MultiTenantManager {
         criadoEm: new Date().toISOString()
       };
 
-      // Salvar no servidor
-      const response = await fetch('https://adegapdv-api.onrender.com/usuarios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(novoUsuario)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText);
-      }
-
-      const usuarioSalvo = await response.json();
-      this.usuarios.push(usuarioSalvo);
+      this.usuarios.push(novoUsuario);
+      this.salvarUsuarios();
       await db.deletePendente(cadastro.id);
 
       const mensagem = `
@@ -701,6 +674,7 @@ window.abrirPainelAdmin = () => tenantManager.abrirPainelAdmin();
 window.fecharPainelAdmin = () => tenantManager.fecharPainelAdmin();
 window.atualizarPainelAdmin = () => tenantManager.atualizarPainelAdmin();
 window.excluirUsuario = (id) => tenantManager.excluirUsuario(id);
+
 window.logoutMulti = () => {
   tenantManager.logout();
   document.getElementById('sistema-principal').classList.add('hidden');

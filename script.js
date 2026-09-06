@@ -1443,6 +1443,10 @@ window.fecharModal = fecharModalProduto;
 // LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
 // ==========================================
 
+a// ==========================================
+// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
+// ==========================================
+
 async function realizarLoginMulti(e) {
   e.preventDefault();
   
@@ -1453,6 +1457,9 @@ async function realizarLoginMulti(e) {
     alert("Preencha todos os campos!");
     return;
   }
+
+  // Aguardar o tenantManager carregar os dados
+  await tenantManager.carregarDados();
 
   const resultado = tenantManager.login(email, senha);
 
@@ -1492,9 +1499,6 @@ async function realizarLoginMulti(e) {
     }
   }
 
-  // ==========================================
-  // CONTROLE DO BOTÃO ADMIN - SÓ APARECE PARA SUPER ADMIN
-  // ==========================================
   const btnAdmin = document.getElementById('btn-admin');
   if (btnAdmin) {
     if (usuarioLogado.cargo === 'super_admin') {
@@ -1506,35 +1510,27 @@ async function realizarLoginMulti(e) {
     }
   }
 
-  // ==========================================
-  // SUPER ADMIN - ESCONDE TUDO E MOSTRA SÓ O PAINEL ADMIN
-  // ==========================================
   if (isSuperAdmin) {
-    // Esconde TODAS as abas do PDV
     document.getElementById("aba-pdv").classList.add("hidden");
     document.getElementById("aba-comandas").classList.add("hidden");
     document.getElementById("aba-estoque").classList.add("hidden");
     document.getElementById("aba-pedidos").classList.add("hidden");
     document.getElementById("aba-gerencia").classList.add("hidden");
     
-    // Esconde os botões de navegação (exceto Admin e Sair)
     const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
     botoesParaEsconder.forEach(id => {
       const btn = document.getElementById(id);
       if (btn) btn.style.display = 'none';
     });
 
-    // Mostra o botão Admin
     if (btnAdmin) {
       btnAdmin.classList.remove('hidden');
       btnAdmin.style.display = 'inline-flex';
     }
 
-    // Mostra o botão Sair
     const btnSair = document.getElementById('btn-sair');
     if (btnSair) btnSair.style.display = '';
 
-    // Abre o Painel Admin automaticamente
     setTimeout(() => {
       tenantManager.abrirPainelAdmin();
     }, 300);
@@ -1543,22 +1539,15 @@ async function realizarLoginMulti(e) {
     return;
   }
 
-  // ==========================================
-  // USUÁRIO NORMAL (Admin, Gerente, Caixa)
-  // ==========================================
-  
-  // Restaura os botões de navegação
   document.querySelectorAll('nav button').forEach(btn => {
     btn.style.display = '';
   });
 
-  // Esconde o botão Admin para usuários normais
   if (btnAdmin) {
     btnAdmin.classList.add('hidden');
     btnAdmin.style.display = 'none';
   }
 
-  // Mostra apenas a aba PDV
   document.getElementById("aba-pdv").classList.remove("hidden");
   document.getElementById("aba-comandas").classList.add("hidden");
   document.getElementById("aba-estoque").classList.add("hidden");
