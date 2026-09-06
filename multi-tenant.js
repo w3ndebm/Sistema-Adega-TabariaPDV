@@ -11,7 +11,7 @@ class MultiTenantManager {
   }
 
   // ==========================================
-  // CARREGAR DADOS DO SERVIDOR
+  // CARREGAR DADOS
   // ==========================================
 
   async carregarDados() {
@@ -22,7 +22,6 @@ class MultiTenantManager {
         this.usuarios = usuariosDB;
         console.log('✅ Usuários carregados do servidor:', this.usuarios.length);
       } else {
-        // Fallback para LocalStorage
         this.carregarDoLocal();
       }
 
@@ -32,13 +31,8 @@ class MultiTenantManager {
         this.estabelecimentos = estabelecimentosDB;
         console.log('✅ Estabelecimentos carregados do servidor:', this.estabelecimentos.length);
       } else {
-        // Fallback para LocalStorage
         this.carregarDoLocal();
       }
-      
-      console.log('📦 Dados carregados:');
-      console.log('👤 Usuários:', this.usuarios.length);
-      console.log('🏢 Estabelecimentos:', this.estabelecimentos.length);
     } catch (error) {
       console.error('❌ Erro ao carregar do servidor:', error);
       this.carregarDoLocal();
@@ -52,28 +46,18 @@ class MultiTenantManager {
     if (usuariosSalvos) {
       this.usuarios = JSON.parse(usuariosSalvos);
     } else {
-      this.usuarios = [
-        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null },
-        { id: 2, nome: "João Silva", email: "joao@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "admin", ativo: true, criadoPor: 1 },
-        { id: 3, nome: "Carlos Oliveira", email: "carlos@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "caixa", ativo: true, criadoPor: 2 },
-        { id: 4, nome: "Maria Santos", email: "maria@adegab.com", senha: "123", estabelecimentoId: 2, cargo: "admin", ativo: true, criadoPor: 1 }
-      ];
-      this.salvarUsuarios();
+      this.usuarios = [];
     }
 
     if (estabelecimentosSalvos) {
       this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
     } else {
-      this.estabelecimentos = [
-        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } },
-        { id: 2, nome: "Tabacaria da Maria", cnpj: "98.765.432/0001-10", endereco: "Av. Tabacaria, 456", telefone: "(11) 88888-8888", plano: "basico", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" } }
-      ];
-      this.salvarEstabelecimentos();
+      this.estabelecimentos = [];
     }
   }
 
   // ==========================================
-  // SALVAR DADOS NO SERVIDOR
+  // SALVAR DADOS
   // ==========================================
 
   async salvarUsuarios() {
@@ -105,10 +89,17 @@ class MultiTenantManager {
   // ==========================================
 
   login(email, senha) {
+    console.log('🔐 Tentando login:', email);
+    console.log('👤 Usuários disponíveis:', this.usuarios.length);
+    
     const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
+    
     if (!usuario) {
+      console.log('❌ Usuário não encontrado');
       return { success: false, message: "Email ou senha incorretos!" };
     }
+
+    console.log('✅ Usuário encontrado:', usuario.nome, 'Cargo:', usuario.cargo);
 
     if (usuario.cargo === 'super_admin') {
       const estabelecimentoVirtual = {
@@ -121,19 +112,17 @@ class MultiTenantManager {
       };
       this.estabelecimentoAtual = estabelecimentoVirtual;
       this.salvarSessao(usuario, estabelecimentoVirtual);
-      return { success: true, usuario: usuario, estabelecimento: estabelecimentoVirtual, isSuperAdmin: true, nivelAcesso: 'super_admin' };
+      return { success: true, usuario: usuario, estabelecimento: estabelecimentoVirtual, isSuperAdmin: true };
     }
 
     const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
     if (!estabelecimento || !estabelecimento.ativo) {
       return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
     }
-    if (usuario.cargo === 'admin' && usuario.estabelecimentoId !== estabelecimento.id) {
-      return { success: false, message: "Acesso negado!" };
-    }
+    
     this.estabelecimentoAtual = estabelecimento;
     this.salvarSessao(usuario, estabelecimento);
-    return { success: true, usuario: usuario, estabelecimento: estabelecimento, isSuperAdmin: false, nivelAcesso: usuario.cargo };
+    return { success: true, usuario: usuario, estabelecimento: estabelecimento, isSuperAdmin: false };
   }
 
   salvarSessao(usuario, estabelecimento) {
@@ -164,11 +153,6 @@ class MultiTenantManager {
     if (this.estabelecimentoAtual) return this.estabelecimentoAtual;
     const sessao = this.getSessaoAtual();
     if (!sessao) return null;
-    if (sessao.isSuperAdmin) {
-      const virtual = { id: 999, nome: "👑 SUPER ADMIN - Controle Total", plano: "enterprise", ativo: true, configuracao: { totalMesas: 999, totalComandas: 999, corTema: "purple" }, isVirtual: true };
-      this.estabelecimentoAtual = virtual;
-      return virtual;
-    }
     const estabelecimento = this.estabelecimentos.find(e => e.id === sessao.estabelecimentoId);
     this.estabelecimentoAtual = estabelecimento;
     return estabelecimento;
@@ -185,13 +169,10 @@ class MultiTenantManager {
     this.estabelecimentoAtual = null;
     localStorage.removeItem('mt_sessao_atual');
     document.body.classList.remove('super-admin-mode');
-    document.querySelectorAll('nav button').forEach(btn => {
-      btn.style.display = '';
-    });
   }
 
   // ==========================================
-  // GERENCIAMENTO DE USUÁRIOS
+  // USUÁRIOS
   // ==========================================
 
   getCargosPermitidos() {
@@ -205,22 +186,20 @@ class MultiTenantManager {
   criarUsuario(dados) {
     const usuarioAtual = this.getUsuarioAtual();
     const cargosPermitidos = this.getCargosPermitidos();
+    
     if (!cargosPermitidos.includes(dados.cargo)) {
-      return { success: false, message: `Você não pode criar usuários com cargo "${dados.cargo}". Cargos permitidos: ${cargosPermitidos.join(', ')}` };
+      return { success: false, message: `Você não pode criar usuários com cargo "${dados.cargo}".` };
     }
+
     let estabelecimentoId = dados.estabelecimentoId;
     if (usuarioAtual.cargo === 'admin') {
       estabelecimentoId = usuarioAtual.estabelecimentoId;
     }
-    if (estabelecimentoId) {
-      const estabelecimento = this.estabelecimentos.find(e => e.id === estabelecimentoId);
-      if (!estabelecimento) {
-        return { success: false, message: "Estabelecimento não encontrado!" };
-      }
-    }
+
     if (this.usuarios.some(u => u.email === dados.email)) {
       return { success: false, message: "Este email já está cadastrado!" };
     }
+
     const novoUsuario = {
       id: Date.now(),
       nome: dados.nome,
@@ -232,64 +211,42 @@ class MultiTenantManager {
       criadoPor: usuarioAtual.id,
       criadoEm: new Date().toISOString()
     };
+
     this.usuarios.push(novoUsuario);
     this.salvarUsuarios();
-    return { success: true, usuario: novoUsuario, message: `✅ Usuário "${dados.nome}" (${dados.cargo}) criado com sucesso!` };
+    return { success: true, usuario: novoUsuario, message: `✅ Usuário criado com sucesso!` };
   }
 
   listarUsuarios() {
     const usuarioAtual = this.getUsuarioAtual();
     if (!usuarioAtual) return [];
     if (usuarioAtual.cargo === 'super_admin') return this.usuarios;
-    if (usuarioAtual.cargo === 'admin') return this.usuarios.filter(u => u.estabelecimentoId === usuarioAtual.estabelecimentoId);
+    if (usuarioAtual.cargo === 'admin') {
+      return this.usuarios.filter(u => u.estabelecimentoId === usuarioAtual.estabelecimentoId);
+    }
     return [usuarioAtual];
   }
 
   editarUsuario(id, dados) {
-    const usuarioAtual = this.getUsuarioAtual();
     const usuario = this.usuarios.find(u => u.id === id);
-    if (!usuario) {
-      return { success: false, message: "Usuário não encontrado!" };
-    }
-    if (usuarioAtual.cargo !== 'super_admin') {
-      if (usuarioAtual.estabelecimentoId !== usuario.estabelecimentoId) {
-        return { success: false, message: "Acesso negado!" };
-      }
-      if (usuario.cargo === 'admin' && usuarioAtual.id !== usuario.id) {
-        return { success: false, message: "Acesso negado! Não pode editar outro administrador." };
-      }
-    }
+    if (!usuario) return { success: false, message: "Usuário não encontrado!" };
+    
     if (dados.nome) usuario.nome = dados.nome;
     if (dados.senha) usuario.senha = dados.senha;
     if (dados.ativo !== undefined) usuario.ativo = dados.ativo;
-    if (dados.cargo && usuarioAtual.cargo === 'super_admin') {
-      usuario.cargo = dados.cargo;
-    }
+    if (dados.cargo) usuario.cargo = dados.cargo;
+    if (dados.estabelecimentoId !== undefined) usuario.estabelecimentoId = dados.estabelecimentoId;
+    
     this.salvarUsuarios();
-    return { success: true, message: "✅ Usuário atualizado com sucesso!" };
+    return { success: true, message: "✅ Usuário atualizado!" };
   }
 
   toggleUsuarioStatus(id) {
-    const usuarioAtual = this.getUsuarioAtual();
     const usuario = this.usuarios.find(u => u.id === id);
-    if (!usuario) {
-      return { success: false, message: "Usuário não encontrado!" };
-    }
-    if (usuarioAtual.id === id) {
-      return { success: false, message: "Você não pode desativar a si mesmo!" };
-    }
-    if (usuarioAtual.cargo !== 'super_admin') {
-      if (usuarioAtual.estabelecimentoId !== usuario.estabelecimentoId) {
-        return { success: false, message: "Acesso negado!" };
-      }
-      if (usuario.cargo === 'admin') {
-        return { success: false, message: "Acesso negado! Não pode desativar outro administrador." };
-      }
-    }
+    if (!usuario) return { success: false, message: "Usuário não encontrado!" };
     usuario.ativo = !usuario.ativo;
     this.salvarUsuarios();
-    const status = usuario.ativo ? 'ativado' : 'desativado';
-    return { success: true, message: `✅ Usuário ${status} com sucesso!` };
+    return { success: true, message: `✅ Usuário ${usuario.ativo ? 'ativado' : 'desativado'}!` };
   }
 
   excluirUsuario(id) {
@@ -307,22 +264,16 @@ class MultiTenantManager {
       alert('Conta não encontrada!');
       return;
     }
-    const adminsDoEstabelecimento = this.usuarios.filter(u => u.estabelecimentoId === usuario.estabelecimentoId && u.cargo === 'admin' && u.id !== id);
-    if (usuario.cargo === 'admin' && adminsDoEstabelecimento.length === 0) {
-      if (!confirm(`⚠️ ATENÇÃO: "${usuario.nome}" é o ÚNICO administrador do estabelecimento "${this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId)?.nome}".\n\nExcluir esta conta deixará o estabelecimento sem administrador!\n\nDeseja continuar?`)) {
-        return;
-      }
-    }
-    if (confirm(`⚠️ Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a conta de "${usuario.nome}" (${usuario.email})?`)) {
+    if (confirm(`⚠️ Tem certeza que deseja EXCLUIR "${usuario.nome}"?`)) {
       this.usuarios = this.usuarios.filter(u => u.id !== id);
       this.salvarUsuarios();
       this.atualizarPainelAdmin();
-      alert('🗑️ Conta excluída com sucesso!');
+      alert('🗑️ Conta excluída!');
     }
   }
 
   // ==========================================
-  // GERENCIAMENTO DE ESTABELECIMENTOS
+  // ESTABELECIMENTOS
   // ==========================================
 
   criarEstabelecimento(dados) {
@@ -339,29 +290,24 @@ class MultiTenantManager {
       plano: dados.plano || "basico",
       ativo: true,
       dataCadastro: new Date().toISOString(),
-      configuracao: { totalMesas: dados.totalMesas || 10, totalComandas: dados.totalComandas || 30, corTema: dados.corTema || "emerald" }
+      configuracao: { totalMesas: dados.totalMesas || 10, totalComandas: dados.totalComandas || 30 }
     };
     this.estabelecimentos.push(novo);
     this.salvarEstabelecimentos();
-    const resultadoUsuario = this.criarUsuario({
-      nome: dados.nomeAdmin,
-      email: dados.emailAdmin,
-      senha: dados.senhaAdmin || "123456",
-      estabelecimentoId: novo.id,
-      cargo: 'admin'
-    });
-    return { success: true, estabelecimento: novo, usuario: resultadoUsuario.usuario, message: `✅ Estabelecimento "${dados.nome}" criado com sucesso!` };
+    return { success: true, estabelecimento: novo };
   }
 
   listarEstabelecimentos() {
     const usuarioAtual = this.getUsuarioAtual();
     if (usuarioAtual.cargo === 'super_admin') return this.estabelecimentos;
-    if (usuarioAtual.cargo === 'admin') return this.estabelecimentos.filter(e => e.id === usuarioAtual.estabelecimentoId);
+    if (usuarioAtual.cargo === 'admin') {
+      return this.estabelecimentos.filter(e => e.id === usuarioAtual.estabelecimentoId);
+    }
     return [];
   }
 
   // ==========================================
-  // PAINEL DE ADMINISTRAÇÃO
+  // PAINEL ADMIN
   // ==========================================
 
   abrirPainelAdmin() {
@@ -371,9 +317,7 @@ class MultiTenantManager {
       return;
     }
 
-    // FORÇA RECARREGAR OS DADOS
     this.carregarDados();
-
     document.body.classList.add('super-admin-mode');
 
     const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
@@ -382,28 +326,11 @@ class MultiTenantManager {
       if (btn) btn.style.display = 'none';
     });
 
-    const btnAdmin = document.getElementById('btn-admin');
-    const btnSair = document.getElementById('btn-sair');
-    if (btnAdmin) {
-      btnAdmin.classList.remove('hidden');
-      btnAdmin.style.display = 'inline-flex';
-    }
-    if (btnSair) btnSair.style.display = '';
-
     const modal = document.getElementById('modal-painel-admin');
     if (modal) {
       modal.classList.remove('hidden');
-      // FORÇA O MODAL A APARECER
       modal.style.display = 'flex';
-      modal.style.alignItems = 'center';
-      modal.style.justifyContent = 'center';
-      
-      // ESPERA UM POUCO E ATUALIZA
-      setTimeout(() => {
-        this.atualizarPainelAdmin();
-      }, 100);
-    } else {
-      alert('❌ Modal do Painel Admin não encontrado! Verifique o HTML.');
+      setTimeout(() => this.atualizarPainelAdmin(), 200);
     }
   }
 
@@ -414,155 +341,81 @@ class MultiTenantManager {
       modal.style.display = 'none';
     }
     document.body.classList.remove('super-admin-mode');
-    const botoesParaRestaurar = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
-    botoesParaRestaurar.forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn) btn.style.display = '';
-    });
   }
 
   atualizarPainelAdmin() {
-    // FORÇA RECARREGAR OS DADOS
     this.carregarDados();
 
     const totalUsuarios = this.usuarios.length;
     const totalAtivos = this.usuarios.filter(u => u.ativo).length;
     const totalEstabelecimentos = this.estabelecimentos.length;
-    const totalPremium = this.estabelecimentos.filter(e => e.plano === 'premium').length;
 
-    const elTotalUsers = document.getElementById('admin-total-usuarios');
-    const elTotalAtivos = document.getElementById('admin-total-ativos');
-    const elTotalEstab = document.getElementById('admin-total-estabelecimentos');
-    const elTotalPremium = document.getElementById('admin-total-premium');
+    document.getElementById('admin-total-usuarios').innerText = totalUsuarios;
+    document.getElementById('admin-total-ativos').innerText = totalAtivos;
+    document.getElementById('admin-total-estabelecimentos').innerText = totalEstabelecimentos;
 
-    if (elTotalUsers) elTotalUsers.innerText = totalUsuarios;
-    if (elTotalAtivos) elTotalAtivos.innerText = totalAtivos;
-    if (elTotalEstab) elTotalEstab.innerText = totalEstabelecimentos;
-    if (elTotalPremium) elTotalPremium.innerText = totalPremium;
-
-    // Renderizar estabelecimentos
     const tbodyEstab = document.getElementById('admin-lista-estabelecimentos');
     if (tbodyEstab) {
-      if (this.estabelecimentos.length === 0) {
-        tbodyEstab.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Nenhum estabelecimento cadastrado.</td></tr>`;
-      } else {
-        tbodyEstab.innerHTML = this.estabelecimentos.map(e => `
-          <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
-            <td class="p-2 text-gray-400">${e.id}</td>
-            <td class="p-2 font-bold text-white">${e.nome}</td>
-            <td class="p-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.plano === 'enterprise' ? 'bg-purple-950 text-purple-400 border border-purple-800' : e.plano === 'premium' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
-                ${e.plano.toUpperCase()}
-              </span>
-            </td>
-            <td class="p-2 text-gray-400">${this.usuarios.filter(u => u.estabelecimentoId === e.id).length}</td>
-            <td class="p-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
-                ${e.ativo ? '🟢 Ativo' : '🔴 Inativo'}
-              </span>
-            </td>
-            <td class="p-2 text-right space-x-1">
-              <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
-                ${e.ativo ? 'Desativar' : 'Ativar'}
-              </button>
-            </td>
-          </tr>
-        `).join('');
-      }
+      tbodyEstab.innerHTML = this.estabelecimentos.map(e => `
+        <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+          <td class="p-2">${e.id}</td>
+          <td class="p-2 font-bold text-white">${e.nome}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-400 border border-amber-800">${e.plano.toUpperCase()}</span></td>
+          <td class="p-2">${this.usuarios.filter(u => u.estabelecimentoId === e.id).length}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">🟢 Ativo</span></td>
+          <td class="p-2 text-right">
+            <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 rounded text-[10px] text-white">Desativar</button>
+          </td>
+        </tr>
+      `).join('');
     }
 
-    // Renderizar usuários
     const tbodyUser = document.getElementById('admin-lista-usuarios');
     if (tbodyUser) {
-      if (this.usuarios.length === 0) {
-        tbodyUser.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">Nenhum usuário cadastrado.</td></tr>`;
-      } else {
-        tbodyUser.innerHTML = this.usuarios.map(u => {
-          const cargoLabel = {
-            'super_admin': '👑 Super Admin',
-            'admin': '🏢 Admin',
-            'gerente': '📋 Gerente',
-            'caixa': '💰 Caixa'
-          }[u.cargo] || u.cargo;
-
-          const isSuperAdmin = u.cargo === 'super_admin';
-          const estabelecimentoNome = u.estabelecimentoId ? 
-            this.estabelecimentos.find(e => e.id === u.estabelecimentoId)?.nome || 'N/A' : 
-            'Sistema';
-          
-          return `
-            <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
-              <td class="p-2 text-gray-400">${u.id}</td>
-              <td class="p-2 font-bold text-white">${u.nome}</td>
-              <td class="p-2 text-gray-300">${u.email}</td>
-              <td class="p-2">
-                <span class="text-[10px] font-bold ${u.cargo === 'super_admin' ? 'text-purple-400' : u.cargo === 'admin' ? 'text-amber-400' : u.cargo === 'gerente' ? 'text-blue-400' : 'text-gray-400'}">
-                  ${cargoLabel}
-                </span>
-              </td>
-              <td class="p-2 text-gray-400 text-[10px]">${estabelecimentoNome}</td>
-              <td class="p-2">
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${u.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
-                  ${u.ativo ? '🟢 Ativo' : '🔴 Inativo'}
-                </span>
-              </td>
-              <td class="p-2 text-right space-x-1">
-                ${!isSuperAdmin ? `
-                  <button onclick="tenantManager.abrirModalEditarUsuario(${u.id})" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded text-[10px] text-white" title="Editar">✏️</button>
-                  <button onclick="tenantManager.toggleUsuarioStatus(${u.id})" class="${u.ativo ? 'bg-amber-700 hover:bg-amber-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white" title="Alterar Status">
-                    ${u.ativo ? '⏸️' : '▶️'}
-                  </button>
-                  <button onclick="tenantManager.excluirUsuario(${u.id})" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 rounded text-[10px] text-white" title="Excluir Conta">🗑️ Excluir</button>
-                ` : '<span class="text-purple-400 text-[10px] font-bold">👑</span>'}
-              </td>
-            </tr>
-          `;
-        }).join('');
-      }
+      tbodyUser.innerHTML = this.usuarios.map(u => {
+        const cargoLabel = { 'super_admin': '👑 Super Admin', 'admin': '🏢 Admin', 'gerente': '📋 Gerente', 'caixa': '💰 Caixa' }[u.cargo] || u.cargo;
+        const isSuperAdmin = u.cargo === 'super_admin';
+        const estabNome = u.estabelecimentoId ? this.estabelecimentos.find(e => e.id === u.estabelecimentoId)?.nome || 'N/A' : 'Sistema';
+        return `
+          <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+            <td class="p-2">${u.id}</td>
+            <td class="p-2 font-bold text-white">${u.nome}</td>
+            <td class="p-2 text-gray-300">${u.email}</td>
+            <td class="p-2"><span class="text-[10px] font-bold ${u.cargo === 'super_admin' ? 'text-purple-400' : 'text-amber-400'}">${cargoLabel}</span></td>
+            <td class="p-2 text-gray-400 text-[10px]">${estabNome}</td>
+            <td class="p-2"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">🟢 Ativo</span></td>
+            <td class="p-2 text-right space-x-1">
+              ${!isSuperAdmin ? `
+                <button onclick="tenantManager.abrirModalEditarUsuario(${u.id})" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded text-[10px] text-white">✏️</button>
+                <button onclick="tenantManager.excluirUsuario(${u.id})" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 rounded text-[10px] text-white">🗑️</button>
+              ` : '<span class="text-purple-400">👑</span>'}
+            </td>
+          </tr>
+        `;
+      }).join('');
     }
-    
-    console.log('✅ Painel Admin atualizado!');
-    console.log('👤 Usuários:', this.usuarios.length);
-    console.log('🏢 Estabelecimentos:', this.estabelecimentos.length);
   }
 
   toggleEstabelecimentoStatus(id) {
     const estabelecimento = this.estabelecimentos.find(e => e.id === id);
     if (!estabelecimento) return;
-    const novoStatus = !estabelecimento.ativo;
-    const acao = novoStatus ? 'ativar' : 'desativar';
-    if (confirm(`Tem certeza que deseja ${acao} o estabelecimento "${estabelecimento.nome}"?`)) {
-      estabelecimento.ativo = novoStatus;
-      this.salvarEstabelecimentos();
-      this.atualizarPainelAdmin();
-      alert(`✅ Estabelecimento ${novoStatus ? 'ativado' : 'desativado'} com sucesso!`);
-    }
+    estabelecimento.ativo = !estabelecimento.ativo;
+    this.salvarEstabelecimentos();
+    this.atualizarPainelAdmin();
   }
-
-  // ==========================================
-  // MODAL: EDITAR USUÁRIO
-  // ==========================================
 
   abrirModalEditarUsuario(id) {
     const usuario = this.usuarios.find(u => u.id === id);
-    if (!usuario) {
-      alert('Usuário não encontrado!');
-      return;
-    }
-    const usuarioAtual = this.getUsuarioAtual();
-    if (usuario.cargo === 'super_admin' && usuarioAtual.id === usuario.id) {
-      alert('❌ Você não pode editar a si mesmo!');
-      return;
-    }
-
+    if (!usuario) return alert('Usuário não encontrado!');
+    
     const modalHTML = `
       <div id="modal-editar-usuario" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[300]">
         <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
           <div class="flex justify-between items-center border-b border-gray-700 pb-3">
             <h3 class="font-bold text-white text-lg">✏️ Editar Usuário</h3>
-            <button onclick="fecharModalEditarUsuario()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
+            <button onclick="document.getElementById('modal-editar-usuario').remove()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
           </div>
-          <form id="form-editar-usuario" onsubmit="salvarEdicaoUsuario(event)" class="space-y-3">
+          <form onsubmit="tenantManager.salvarEdicaoUsuario(event, ${id})" class="space-y-3">
             <div>
               <label class="block text-xs font-semibold text-gray-400 mb-1">Nome</label>
               <input type="text" id="edit-nome" value="${usuario.nome}" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
@@ -572,303 +425,47 @@ class MultiTenantManager {
               <input type="email" id="edit-email" value="${usuario.email}" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
             </div>
             <div>
+              <label class="block text-xs font-semibold text-gray-400 mb-1">Nova Senha</label>
+              <input type="text" id="edit-senha" placeholder="Digite a nova senha" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
               <label class="block text-xs font-semibold text-gray-400 mb-1">Cargo</label>
               <select id="edit-cargo" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-                <option value="admin" ${usuario.cargo === 'admin' ? 'selected' : ''}>Admin (Dono da Adega)</option>
+                <option value="admin" ${usuario.cargo === 'admin' ? 'selected' : ''}>Admin</option>
                 <option value="gerente" ${usuario.cargo === 'gerente' ? 'selected' : ''}>Gerente</option>
                 <option value="caixa" ${usuario.cargo === 'caixa' ? 'selected' : ''}>Caixa</option>
               </select>
             </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Nova Senha (deixe em branco para manter)</label>
-              <input type="text" id="edit-senha" placeholder="Digite a nova senha" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento</label>
-              <select id="edit-estabelecimento" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-                ${this.estabelecimentos.map(e => `<option value="${e.id}" ${usuario.estabelecimentoId === e.id ? 'selected' : ''}>${e.nome}</option>`).join('')}
-              </select>
-            </div>
-            <div class="flex items-center gap-2 pt-2">
-              <input type="checkbox" id="edit-ativo" ${usuario.ativo ? 'checked' : ''} class="w-4 h-4 accent-emerald-500">
-              <label for="edit-ativo" class="text-xs text-gray-300 cursor-pointer">Usuário ativo</label>
-            </div>
             <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
-              <button type="button" onclick="fecharModalEditarUsuario()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
-              <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">💾 Salvar Alterações</button>
+              <button type="button" onclick="document.getElementById('modal-editar-usuario').remove()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+              <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white">💾 Salvar</button>
             </div>
           </form>
         </div>
       </div>
     `;
-
-    const oldModal = document.getElementById('modal-editar-usuario');
-    if (oldModal) oldModal.remove();
     document.body.insertAdjacentHTML('beforeend', modalHTML);
-    window.usuarioEditandoId = id;
   }
 
-  fecharModalEditarUsuario() {
-    const modal = document.getElementById('modal-editar-usuario');
-    if (modal) modal.remove();
-    window.usuarioEditandoId = null;
-  }
-
-  salvarEdicaoUsuario(e) {
+  salvarEdicaoUsuario(e, id) {
     e.preventDefault();
-    const id = window.usuarioEditandoId;
-    if (!id) {
-      alert('Erro: Usuário não identificado!');
-      return;
-    }
-    const dados = {
-      nome: document.getElementById('edit-nome').value.trim(),
-      email: document.getElementById('edit-email').value.trim(),
-      cargo: document.getElementById('edit-cargo').value,
-      senha: document.getElementById('edit-senha').value.trim() || undefined,
-      estabelecimentoId: parseInt(document.getElementById('edit-estabelecimento').value),
-      ativo: document.getElementById('edit-ativo').checked
-    };
-    if (!dados.nome || !dados.email) {
-      alert('❌ Nome e email são obrigatórios!');
-      return;
-    }
-    const emailExiste = this.usuarios.some(u => u.email === dados.email && u.id !== id);
-    if (emailExiste) {
-      alert('❌ Este email já está em uso por outro usuário!');
-      return;
-    }
     const usuario = this.usuarios.find(u => u.id === id);
-    if (!usuario) {
-      alert('Usuário não encontrado!');
-      return;
-    }
-    usuario.nome = dados.nome;
-    usuario.email = dados.email;
-    usuario.cargo = dados.cargo;
-    usuario.estabelecimentoId = dados.estabelecimentoId;
-    usuario.ativo = dados.ativo;
-    if (dados.senha) {
-      usuario.senha = dados.senha;
-    }
+    if (!usuario) return alert('Usuário não encontrado!');
+    
+    usuario.nome = document.getElementById('edit-nome').value.trim();
+    usuario.email = document.getElementById('edit-email').value.trim();
+    usuario.cargo = document.getElementById('edit-cargo').value;
+    const senha = document.getElementById('edit-senha').value.trim();
+    if (senha) usuario.senha = senha;
+    
     this.salvarUsuarios();
-    this.fecharModalEditarUsuario();
+    document.getElementById('modal-editar-usuario').remove();
     this.atualizarPainelAdmin();
-    alert('✅ Usuário atualizado com sucesso!');
+    alert('✅ Usuário atualizado!');
   }
 
   // ==========================================
-  // MODAL: NOVO ESTABELECIMENTO
-  // ==========================================
-
-  abrirModalNovoEstabelecimento() {
-    const modalHTML = `
-      <div id="modal-novo-estabelecimento" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
-        <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-lg space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-          <div class="flex justify-between items-center border-b border-gray-700 pb-3">
-            <h3 class="font-bold text-white text-lg">🏢 Novo Estabelecimento</h3>
-            <button onclick="fecharModalNovoEstabelecimento()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
-          </div>
-          <form id="form-novo-estabelecimento" onsubmit="salvarNovoEstabelecimento(event)" class="space-y-3">
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Estabelecimento *</label>
-              <input type="text" id="ne-nome" required placeholder="Ex: Adega do Zé" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">CNPJ</label>
-              <input type="text" id="ne-cnpj" placeholder="12.345.678/0001-90" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Endereço</label>
-              <input type="text" id="ne-endereco" placeholder="Rua das Adegas, 123" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Telefone</label>
-              <input type="text" id="ne-telefone" placeholder="(11) 99999-9999" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Plano</label>
-              <select id="ne-plano" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-                <option value="basico">Básico - R$ 49,90/mês</option>
-                <option value="premium" selected>Premium - R$ 99,90/mês</option>
-                <option value="enterprise">Enterprise - R$ 199,90/mês</option>
-              </select>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Mesas</label>
-                <input type="number" id="ne-mesas" value="10" min="1" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Comandas</label>
-                <input type="number" id="ne-comandas" value="30" min="1" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
-              </div>
-            </div>
-            <div class="border-t border-gray-700 pt-3 mt-2">
-              <p class="text-xs font-bold text-amber-400 mb-2">👤 Usuário Administrador (Dono da Adega)</p>
-              <div>
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Admin *</label>
-                <input type="text" id="ne-admin-nome" required placeholder="Nome do responsável" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-              </div>
-              <div class="mt-2">
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Email do Admin *</label>
-                <input type="email" id="ne-admin-email" required placeholder="admin@adega.com" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-              </div>
-              <div class="mt-2">
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Senha do Admin</label>
-                <input type="text" id="ne-admin-senha" value="123456" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
-                <p class="text-[10px] text-gray-500 mt-1">Deixe em branco para usar "123456"</p>
-              </div>
-            </div>
-            <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
-              <button type="button" onclick="fecharModalNovoEstabelecimento()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
-              <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">✅ Criar Estabelecimento</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    `;
-    const oldModal = document.getElementById('modal-novo-estabelecimento');
-    if (oldModal) oldModal.remove();
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-  }
-
-  salvarNovoEstabelecimento(e) {
-    e.preventDefault();
-    const dados = {
-      nome: document.getElementById('ne-nome').value.trim(),
-      cnpj: document.getElementById('ne-cnpj').value.trim(),
-      endereco: document.getElementById('ne-endereco').value.trim(),
-      telefone: document.getElementById('ne-telefone').value.trim(),
-      plano: document.getElementById('ne-plano').value,
-      totalMesas: parseInt(document.getElementById('ne-mesas').value) || 10,
-      totalComandas: parseInt(document.getElementById('ne-comandas').value) || 30,
-      nomeAdmin: document.getElementById('ne-admin-nome').value.trim(),
-      emailAdmin: document.getElementById('ne-admin-email').value.trim(),
-      senhaAdmin: document.getElementById('ne-admin-senha').value.trim() || '123456'
-    };
-    if (!dados.nome) {
-      alert('❌ O nome do estabelecimento é obrigatório!');
-      return;
-    }
-    if (!dados.nomeAdmin || !dados.emailAdmin) {
-      alert('❌ Os dados do administrador são obrigatórios!');
-      return;
-    }
-    const resultado = this.criarEstabelecimento(dados);
-    if (resultado.success) {
-      alert(resultado.message + `\n\n📧 Email: ${dados.emailAdmin}\n🔑 Senha: ${dados.senhaAdmin}`);
-      this.fecharModalNovoEstabelecimento();
-      this.atualizarPainelAdmin();
-    } else {
-      alert('❌ ' + resultado.message);
-    }
-  }
-
-  fecharModalNovoEstabelecimento() {
-    const modal = document.getElementById('modal-novo-estabelecimento');
-    if (modal) modal.remove();
-  }
-
-  // ==========================================
-  // MODAL: NOVO USUÁRIO
-  // ==========================================
-
-  abrirModalNovoUsuario() {
-    const usuarioAtual = this.getUsuarioAtual();
-    const cargosPermitidos = this.getCargosPermitidos();
-    if (cargosPermitidos.length === 0) {
-      alert('❌ Você não tem permissão para criar usuários!');
-      return;
-    }
-
-    const modalHTML = `
-      <div id="modal-novo-usuario" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
-        <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
-          <div class="flex justify-between items-center border-b border-gray-700 pb-3">
-            <h3 class="font-bold text-white text-lg">👤 Novo Usuário</h3>
-            <button onclick="fecharModalNovoUsuario()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
-          </div>
-          <form id="form-novo-usuario" onsubmit="salvarNovoUsuario(event)" class="space-y-3">
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Nome *</label>
-              <input type="text" id="nu-nome" required placeholder="Nome do usuário" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Email *</label>
-              <input type="email" id="nu-email" required placeholder="usuario@adega.com" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Cargo *</label>
-              <select id="nu-cargo" required class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-                ${cargosPermitidos.map(c => `<option value="${c}">${c.charAt(0).toUpperCase() + c.slice(1)}</option>`).join('')}
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold text-gray-400 mb-1">Senha</label>
-              <input type="text" id="nu-senha" value="123456" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white font-mono focus:outline-none focus:border-emerald-500">
-              <p class="text-[10px] text-gray-500 mt-1">Deixe em branco para usar "123456"</p>
-            </div>
-            ${usuarioAtual.cargo === 'super_admin' ? `
-              <div>
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento</label>
-                <select id="nu-estabelecimento" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-                  ${this.estabelecimentos.map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
-                </select>
-              </div>
-            ` : ''}
-            <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
-              <button type="button" onclick="fecharModalNovoUsuario()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
-              <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white shadow-lg">✅ Criar Usuário</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    `;
-    const oldModal = document.getElementById('modal-novo-usuario');
-    if (oldModal) oldModal.remove();
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-  }
-
-  salvarNovoUsuario(e) {
-    e.preventDefault();
-    const usuarioAtual = this.getUsuarioAtual();
-    const dados = {
-      nome: document.getElementById('nu-nome').value.trim(),
-      email: document.getElementById('nu-email').value.trim(),
-      senha: document.getElementById('nu-senha').value.trim() || '123456',
-      cargo: document.getElementById('nu-cargo').value,
-      estabelecimentoId: null
-    };
-    if (usuarioAtual.cargo === 'super_admin') {
-      const estabSelect = document.getElementById('nu-estabelecimento');
-      if (estabSelect) {
-        dados.estabelecimentoId = parseInt(estabSelect.value);
-      }
-    } else {
-      dados.estabelecimentoId = usuarioAtual.estabelecimentoId;
-    }
-    if (!dados.nome || !dados.email) {
-      alert('❌ Nome e email são obrigatórios!');
-      return;
-    }
-    const resultado = this.criarUsuario(dados);
-    if (resultado.success) {
-      alert(resultado.message);
-      this.fecharModalNovoUsuario();
-      this.atualizarPainelAdmin();
-    } else {
-      alert('❌ ' + resultado.message);
-    }
-  }
-
-  fecharModalNovoUsuario() {
-    const modal = document.getElementById('modal-novo-usuario');
-    if (modal) modal.remove();
-  }
-
-  // ==========================================
-  // GERENCIAR CADASTROS PENDENTES
+  // PENDENTES
   // ==========================================
 
   async abrirModalPendentes() {
@@ -877,21 +474,22 @@ class MultiTenantManager {
       alert('❌ Acesso restrito ao Super Administrador!');
       return;
     }
+
     try {
       const pendentes = await db.getAllPendentes() || [];
-      const badge = document.getElementById('badge-pendentes');
-      if (badge) badge.innerText = pendentes.length;
+      document.getElementById('badge-pendentes').innerText = pendentes.length;
+
       if (pendentes.length === 0) {
-        alert('✅ Nenhum cadastro pendente de aprovação!');
+        alert('✅ Nenhum cadastro pendente!');
         return;
       }
-      let listaHTML = pendentes.map((p, index) => `
+
+      const listaHTML = pendentes.map((p, index) => `
         <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg mb-2">
           <div class="flex justify-between items-start">
             <div>
-              <p class="font-bold text-white text-sm">${p.nome}</p>
+              <p class="font-bold text-white">${p.nome}</p>
               <p class="text-xs text-gray-400">${p.email}</p>
-              <p class="text-[10px] text-gray-500">Cadastro: ${new Date(p.dataCadastro).toLocaleString('pt-BR')}</p>
             </div>
             <div class="flex gap-1">
               <button onclick="tenantManager.aprovarCadastro(${index})" class="bg-emerald-600 hover:bg-emerald-500 px-2 py-1 rounded text-[10px] text-white font-bold">✅ Aprovar</button>
@@ -900,26 +498,25 @@ class MultiTenantManager {
           </div>
         </div>
       `).join('');
+
       const modalHTML = `
         <div id="modal-pendentes" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
           <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl max-h-[80vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b border-gray-700 pb-3">
               <h3 class="font-bold text-white text-lg">⏳ Cadastros Pendentes</h3>
-              <button onclick="fecharModalPendentes()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
+              <button onclick="document.getElementById('modal-pendentes').remove()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
             </div>
             <div class="space-y-2">${listaHTML}</div>
             <div class="flex justify-end pt-2 border-t border-gray-700">
-              <button onclick="fecharModalPendentes()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-white">Fechar</button>
+              <button onclick="document.getElementById('modal-pendentes').remove()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-white">Fechar</button>
             </div>
           </div>
         </div>
       `;
-      const oldModal = document.getElementById('modal-pendentes');
-      if (oldModal) oldModal.remove();
       document.body.insertAdjacentHTML('beforeend', modalHTML);
     } catch (error) {
-      console.error('❌ Erro ao buscar pendentes:', error);
-      alert('❌ Erro ao carregar pendentes. Tente novamente.');
+      console.error('❌ Erro:', error);
+      alert('❌ Erro ao carregar pendentes');
     }
   }
 
@@ -927,17 +524,15 @@ class MultiTenantManager {
     try {
       const pendentes = await db.getAllPendentes() || [];
       const cadastro = pendentes[index];
-      if (!cadastro) {
-        alert('❌ Cadastro não encontrado!');
-        return;
-      }
+      if (!cadastro) return alert('Cadastro não encontrado!');
+
       const estabelecimentos = this.listarEstabelecimentos();
       const modalHTML = `
         <div id="modal-aprovar" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[150]">
           <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
             <h3 class="font-bold text-white text-lg">✅ Aprovar Cadastro</h3>
             <p class="text-xs text-gray-400">Defina as permissões para <strong>${cadastro.nome}</strong></p>
-            <form id="form-aprovar" onsubmit="tenantManager.confirmarAprovacao(event, ${index})" class="space-y-3">
+            <form onsubmit="tenantManager.confirmarAprovacao(event, ${index})" class="space-y-3">
               <div>
                 <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento</label>
                 <select id="aprovacao-estabelecimento" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
@@ -952,23 +547,18 @@ class MultiTenantManager {
                   <option value="caixa">Caixa</option>
                 </select>
               </div>
-              <div class="bg-amber-950/30 border border-amber-700/30 p-3 rounded-lg">
-                <p class="text-[10px] text-amber-400">⚠️ O cliente receberá as credenciais para acessar o sistema.</p>
-              </div>
               <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
-                <button type="button" onclick="fecharModalAprovacao()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
+                <button type="button" onclick="document.getElementById('modal-aprovar').remove()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
                 <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white">✅ Aprovar</button>
               </div>
             </form>
           </div>
         </div>
       `;
-      const oldAprovacao = document.getElementById('modal-aprovar');
-      if (oldAprovacao) oldAprovacao.remove();
       document.body.insertAdjacentHTML('beforeend', modalHTML);
     } catch (error) {
-      console.error('❌ Erro ao aprovar:', error);
-      alert('❌ Erro ao aprovar cadastro. Tente novamente.');
+      console.error('❌ Erro:', error);
+      alert('❌ Erro ao aprovar');
     }
   }
 
@@ -977,12 +567,11 @@ class MultiTenantManager {
     try {
       const pendentes = await db.getAllPendentes() || [];
       const cadastro = pendentes[index];
-      if (!cadastro) {
-        alert('❌ Cadastro não encontrado!');
-        return;
-      }
+      if (!cadastro) return alert('Cadastro não encontrado!');
+
       const estabelecimentoId = parseInt(document.getElementById('aprovacao-estabelecimento').value);
       const cargo = document.getElementById('aprovacao-cargo').value;
+
       const novoUsuario = {
         id: Date.now(),
         nome: cadastro.nome,
@@ -994,35 +583,46 @@ class MultiTenantManager {
         criadoPor: this.getUsuarioAtual().id,
         criadoEm: new Date().toISOString()
       };
-      this.usuarios.push(novoUsuario);
-      await this.salvarUsuarios();
+
+      // Salvar no servidor
+      const response = await fetch('https://adegapdv-api.onrender.com/usuarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novoUsuario)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText);
+      }
+
+      const usuarioSalvo = await response.json();
+      this.usuarios.push(usuarioSalvo);
       await db.deletePendente(cadastro.id);
+
       const mensagem = `
-✅ CONTA APROVADA COM SUCESSO!
+✅ CONTA APROVADA!
 📧 Email: ${novoUsuario.email}
 🔑 Senha: ${novoUsuario.senha}
-🏢 Estabelecimento: ${this.estabelecimentos.find(e => e.id === estabelecimentoId)?.nome}
+🏢 Estabelecimento: ${this.estabelecimentos.find(e => e.id === estabelecimentoId)?.nome || 'N/A'}
 👤 Nome: ${novoUsuario.nome}
 📋 Cargo: ${cargo.toUpperCase()}
 🌐 Acesse: https://adegatabariapdv.netlify.app/
       `;
+
       alert(mensagem);
-      try {
-        navigator.clipboard?.writeText(mensagem);
-      } catch (clipError) {
-        console.log('📋 Copie a mensagem manualmente');
-      }
-      fecharModalAprovacao();
-      this.fecharModalPendentes();
+      navigator.clipboard?.writeText(mensagem);
+
+      document.getElementById('modal-aprovar')?.remove();
+      document.getElementById('modal-pendentes')?.remove();
       this.atualizarPainelAdmin();
-      const badge = document.getElementById('badge-pendentes');
-      if (badge) {
-        const restantes = await db.getAllPendentes() || [];
-        badge.innerText = restantes.length;
-      }
+
+      const restantes = await db.getAllPendentes() || [];
+      document.getElementById('badge-pendentes').innerText = restantes.length;
+
     } catch (error) {
-      console.error('❌ Erro ao confirmar aprovação:', error);
-      alert('❌ Erro ao aprovar cadastro. Tente novamente.');
+      console.error('❌ Erro:', error);
+      alert('❌ Erro ao aprovar: ' + error.message);
     }
   }
 
@@ -1030,35 +630,20 @@ class MultiTenantManager {
     try {
       const pendentes = await db.getAllPendentes() || [];
       const cadastro = pendentes[index];
-      if (!cadastro) {
-        alert('❌ Cadastro não encontrado!');
-        return;
-      }
-      if (confirm(`❌ Tem certeza que deseja REPROVAR o cadastro de "${cadastro.nome}"?`)) {
+      if (!cadastro) return alert('Cadastro não encontrado!');
+
+      if (confirm(`❌ Reprovar "${cadastro.nome}"?`)) {
         await db.deletePendente(cadastro.id);
-        alert(`✅ Cadastro de "${cadastro.nome}" foi reprovado!`);
-        this.fecharModalPendentes();
+        document.getElementById('modal-pendentes')?.remove();
         this.atualizarPainelAdmin();
-        const badge = document.getElementById('badge-pendentes');
-        if (badge) {
-          const restantes = await db.getAllPendentes() || [];
-          badge.innerText = restantes.length;
-        }
+        const restantes = await db.getAllPendentes() || [];
+        document.getElementById('badge-pendentes').innerText = restantes.length;
+        alert('✅ Cadastro reprovado!');
       }
     } catch (error) {
-      console.error('❌ Erro ao reprovar:', error);
-      alert('❌ Erro ao reprovar cadastro. Tente novamente.');
+      console.error('❌ Erro:', error);
+      alert('❌ Erro ao reprovar');
     }
-  }
-
-  fecharModalPendentes() {
-    const modal = document.getElementById('modal-pendentes');
-    if (modal) modal.remove();
-  }
-
-  fecharModalAprovacao() {
-    const modal = document.getElementById('modal-aprovar');
-    if (modal) modal.remove();
   }
 }
 
@@ -1067,120 +652,21 @@ class MultiTenantManager {
 // ==========================================
 
 const tenantManager = new MultiTenantManager();
+window.tenantManager = tenantManager;
 
 // ==========================================
 // FUNÇÕES GLOBAIS
 // ==========================================
 
-window.tenantManager = tenantManager;
-
-window.abrirPainelAdmin = function() {
-  tenantManager.abrirPainelAdmin();
-};
-
-window.fecharPainelAdmin = function() {
-  tenantManager.fecharPainelAdmin();
-};
-
-window.atualizarPainelAdmin = function() {
-  tenantManager.atualizarPainelAdmin();
-};
-
-window.fecharModalEditarUsuario = function() {
-  tenantManager.fecharModalEditarUsuario();
-};
-
-window.salvarEdicaoUsuario = function(e) {
-  tenantManager.salvarEdicaoUsuario(e);
-};
-
-window.abrirModalNovoEstabelecimento = function() {
-  tenantManager.abrirModalNovoEstabelecimento();
-};
-
-window.fecharModalNovoEstabelecimento = function() {
-  const modal = document.getElementById('modal-novo-estabelecimento');
-  if (modal) modal.remove();
-};
-
-window.salvarNovoEstabelecimento = function(e) {
-  tenantManager.salvarNovoEstabelecimento(e);
-};
-
-window.abrirModalNovoUsuario = function() {
-  tenantManager.abrirModalNovoUsuario();
-};
-
-window.fecharModalNovoUsuario = function() {
-  const modal = document.getElementById('modal-novo-usuario');
-  if (modal) modal.remove();
-};
-
-window.salvarNovoUsuario = function(e) {
-  tenantManager.salvarNovoUsuario(e);
-};
-
-window.abrirModalPendentes = function() {
-  tenantManager.abrirModalPendentes();
-};
-
-window.aprovarCadastro = function(index) {
-  tenantManager.aprovarCadastro(index);
-};
-
-window.reprovarCadastro = function(index) {
-  tenantManager.reprovarCadastro(index);
-};
-
-window.confirmarAprovacao = function(e, index) {
-  tenantManager.confirmarAprovacao(e, index);
-};
-
-window.fecharModalPendentes = function() {
-  tenantManager.fecharModalPendentes();
-};
-
-window.fecharModalAprovacao = function() {
-  tenantManager.fecharModalAprovacao();
-};
-
-window.excluirUsuario = function(id) {
-  tenantManager.excluirUsuario(id);
-};
-
-// ==========================================
-// LOGOUT
-// ==========================================
-
-window.logoutMulti = function() {
+window.abrirPainelAdmin = () => tenantManager.abrirPainelAdmin();
+window.fecharPainelAdmin = () => tenantManager.fecharPainelAdmin();
+window.atualizarPainelAdmin = () => tenantManager.atualizarPainelAdmin();
+window.excluirUsuario = (id) => tenantManager.excluirUsuario(id);
+window.logoutMulti = () => {
   tenantManager.logout();
-  document.body.classList.remove('super-admin-mode');
-  document.querySelectorAll('nav button').forEach(btn => {
-    btn.style.display = '';
-  });
-  if (typeof usuarioLogado !== 'undefined') {
-    window.usuarioLogado = null;
-  }
-  const formLogin = document.getElementById("form-login");
-  if (formLogin) formLogin.reset();
-  const sistema = document.getElementById("sistema-principal");
-  const login = document.getElementById("tela-login");
-  if (sistema) sistema.classList.add("hidden");
-  if (login) login.classList.remove("hidden");
-  const nome = document.getElementById("nome-usuario-logado");
-  const cargo = document.getElementById("cargo-usuario-logado");
-  const estab = document.getElementById("estabelecimento-nome");
-  if (nome) nome.innerText = "";
-  if (cargo) cargo.innerText = "";
-  if (estab) estab.innerText = "Carregando...";
-  console.log("👋 Usuário desconectado com sucesso!");
+  document.getElementById('sistema-principal').classList.add('hidden');
+  document.getElementById('tela-login').classList.remove('hidden');
+  location.reload();
 };
 
 console.log('✅ Multi-Tenant carregado com sucesso!');
-console.log(`🏢 ${tenantManager.estabelecimentos.length} estabelecimentos cadastrados`);
-console.log(`👤 ${tenantManager.usuarios.length} usuários cadastrados`);
-console.log('📌 Contas disponíveis:');
-console.log('   👑 Super Admin: super@admin.com / admin123');
-console.log('   🏢 Admin Adega: joao@adegaa.com / 123');
-console.log('   🏢 Admin Tabacaria: maria@adegab.com / 123');
-console.log('   💰 Caixa: carlos@adegaa.com / 123');
