@@ -10,15 +10,99 @@ class MultiTenantManager {
     this.carregarDados();
   }
 
+  // ==========================================
+  // CARREGAR DADOS DO SERVIDOR
+  // ==========================================
 
+  async carregarDados() {
+    try {
+      // Carregar usuários do servidor
+      const usuariosDB = await db.getAllUsuarios();
+      if (usuariosDB && usuariosDB.length > 0) {
+        this.usuarios = usuariosDB;
+        console.log('✅ Usuários carregados do servidor:', this.usuarios.length);
+      } else {
+        // Fallback para LocalStorage
+        this.carregarDoLocal();
+      }
 
-  salvarUsuarios() {
-    localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));
+      // Carregar estabelecimentos do servidor
+      const estabelecimentosDB = await db.getAllEstabelecimentos();
+      if (estabelecimentosDB && estabelecimentosDB.length > 0) {
+        this.estabelecimentos = estabelecimentosDB;
+        console.log('✅ Estabelecimentos carregados do servidor:', this.estabelecimentos.length);
+      } else {
+        // Fallback para LocalStorage
+        this.carregarDoLocal();
+      }
+      
+      console.log('📦 Dados carregados:');
+      console.log('👤 Usuários:', this.usuarios.length);
+      console.log('🏢 Estabelecimentos:', this.estabelecimentos.length);
+    } catch (error) {
+      console.error('❌ Erro ao carregar do servidor:', error);
+      this.carregarDoLocal();
+    }
   }
 
-  salvarEstabelecimentos() {
-    localStorage.setItem('mt_estabelecimentos', JSON.stringify(this.estabelecimentos));
+  carregarDoLocal() {
+    const usuariosSalvos = localStorage.getItem('mt_usuarios');
+    const estabelecimentosSalvos = localStorage.getItem('mt_estabelecimentos');
+    
+    if (usuariosSalvos) {
+      this.usuarios = JSON.parse(usuariosSalvos);
+    } else {
+      this.usuarios = [
+        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null },
+        { id: 2, nome: "João Silva", email: "joao@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "admin", ativo: true, criadoPor: 1 },
+        { id: 3, nome: "Carlos Oliveira", email: "carlos@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "caixa", ativo: true, criadoPor: 2 },
+        { id: 4, nome: "Maria Santos", email: "maria@adegab.com", senha: "123", estabelecimentoId: 2, cargo: "admin", ativo: true, criadoPor: 1 }
+      ];
+      this.salvarUsuarios();
+    }
+
+    if (estabelecimentosSalvos) {
+      this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
+    } else {
+      this.estabelecimentos = [
+        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } },
+        { id: 2, nome: "Tabacaria da Maria", cnpj: "98.765.432/0001-10", endereco: "Av. Tabacaria, 456", telefone: "(11) 88888-8888", plano: "basico", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" } }
+      ];
+      this.salvarEstabelecimentos();
+    }
   }
+
+  // ==========================================
+  // SALVAR DADOS NO SERVIDOR
+  // ==========================================
+
+  async salvarUsuarios() {
+    try {
+      for (const usuario of this.usuarios) {
+        await db.saveUsuario(usuario);
+      }
+      console.log('💾 Usuários salvos no servidor!');
+    } catch (error) {
+      console.error('❌ Erro ao salvar usuários:', error);
+      localStorage.setItem('mt_usuarios', JSON.stringify(this.usuarios));
+    }
+  }
+
+  async salvarEstabelecimentos() {
+    try {
+      for (const estabelecimento of this.estabelecimentos) {
+        await db.saveEstabelecimento(estabelecimento);
+      }
+      console.log('💾 Estabelecimentos salvos no servidor!');
+    } catch (error) {
+      console.error('❌ Erro ao salvar estabelecimentos:', error);
+      localStorage.setItem('mt_estabelecimentos', JSON.stringify(this.estabelecimentos));
+    }
+  }
+
+  // ==========================================
+  // LOGIN
+  // ==========================================
 
   login(email, senha) {
     const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
@@ -105,6 +189,10 @@ class MultiTenantManager {
       btn.style.display = '';
     });
   }
+
+  // ==========================================
+  // GERENCIAMENTO DE USUÁRIOS
+  // ==========================================
 
   getCargosPermitidos() {
     const usuario = this.getUsuarioAtual();
@@ -233,6 +321,10 @@ class MultiTenantManager {
     }
   }
 
+  // ==========================================
+  // GERENCIAMENTO DE ESTABELECIMENTOS
+  // ==========================================
+
   criarEstabelecimento(dados) {
     const usuarioAtual = this.getUsuarioAtual();
     if (usuarioAtual.cargo !== 'super_admin') {
@@ -279,7 +371,7 @@ class MultiTenantManager {
       return;
     }
 
-    // 🔥 FORÇA RECARREGAR OS DADOS
+    // FORÇA RECARREGAR OS DADOS
     this.carregarDados();
 
     document.body.classList.add('super-admin-mode');
@@ -301,7 +393,12 @@ class MultiTenantManager {
     const modal = document.getElementById('modal-painel-admin');
     if (modal) {
       modal.classList.remove('hidden');
-      // 🔥 ESPERA UM POUCO E ATUALIZA
+      // FORÇA O MODAL A APARECER
+      modal.style.display = 'flex';
+      modal.style.alignItems = 'center';
+      modal.style.justifyContent = 'center';
+      
+      // ESPERA UM POUCO E ATUALIZA
       setTimeout(() => {
         this.atualizarPainelAdmin();
       }, 100);
@@ -312,7 +409,10 @@ class MultiTenantManager {
 
   fecharPainelAdmin() {
     const modal = document.getElementById('modal-painel-admin');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+    }
     document.body.classList.remove('super-admin-mode');
     const botoesParaRestaurar = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
     botoesParaRestaurar.forEach(id => {
@@ -322,7 +422,7 @@ class MultiTenantManager {
   }
 
   atualizarPainelAdmin() {
-    // 🔥 FORÇA RECARREGAR OS DADOS
+    // FORÇA RECARREGAR OS DADOS
     this.carregarDados();
 
     const totalUsuarios = this.usuarios.length;
@@ -439,6 +539,10 @@ class MultiTenantManager {
     }
   }
 
+  // ==========================================
+  // MODAL: EDITAR USUÁRIO
+  // ==========================================
+
   abrirModalEditarUsuario(id) {
     const usuario = this.usuarios.find(u => u.id === id);
     if (!usuario) {
@@ -553,6 +657,10 @@ class MultiTenantManager {
     alert('✅ Usuário atualizado com sucesso!');
   }
 
+  // ==========================================
+  // MODAL: NOVO ESTABELECIMENTO
+  // ==========================================
+
   abrirModalNovoEstabelecimento() {
     const modalHTML = `
       <div id="modal-novo-estabelecimento" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
@@ -661,6 +769,10 @@ class MultiTenantManager {
     const modal = document.getElementById('modal-novo-estabelecimento');
     if (modal) modal.remove();
   }
+
+  // ==========================================
+  // MODAL: NOVO USUÁRIO
+  // ==========================================
 
   abrirModalNovoUsuario() {
     const usuarioAtual = this.getUsuarioAtual();
