@@ -115,22 +115,41 @@ class MultiTenantManager {
   // LOGIN (FUNÇÃO PRINCIPAL)
   // ==========================================
 
-  login(email, senha) {
-    console.log('🔐 Tentando login (LocalStorage):', email);
-    
-    this.carregarDados();
+  // ==========================================
+  // LOGIN (CONECTADO AO SUPABASE)
+  // ==========================================
 
-    const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
-    
-    if (!usuario) {
-      console.log('❌ Usuário não encontrado');
-      console.log('👤 Emails disponíveis:', this.usuarios.map(u => u.email));
+  async login(email, senha) {
+    console.log('🔐 Tentando login no Supabase:', email);
+
+    // 1. Consulta o usuário na tabela 'usuarios' do Supabase
+    const { data: usuarios, error } = await _supabase
+      .from('usuarios')
+      .select('*')
+      .eq('email', email.trim())
+      .eq('ativo', true);
+
+    if (error) {
+      console.error('❌ Erro na consulta do Supabase:', error.message);
+      return { success: false, message: "Erro ao conectar ao banco de dados!" };
+    }
+
+    if (!usuarios || usuarios.length === 0) {
+      console.log('❌ Usuário não encontrado ou inativo');
+      return { success: false, message: "Email ou senha incorretos!" };
+    }
+
+    const usuario = usuarios[0];
+
+    // 2. Valida a senha
+    if (usuario.senha !== senha.trim()) {
+      console.log('❌ Senha incorreta');
       return { success: false, message: "Email ou senha incorretos!" };
     }
 
     console.log('✅ Usuário encontrado:', usuario.nome);
 
-    // SUPER ADMIN
+    // 3. SUPER ADMIN
     if (usuario.cargo === 'super_admin') {
       const estabelecimentoVirtual = {
         id: 999,
@@ -151,11 +170,18 @@ class MultiTenantManager {
       };
     }
 
-    // USUÁRIO NORMAL
-    const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
-    if (!estabelecimento || !estabelecimento.ativo) {
+    // 4. USUÁRIO NORMAL - Busca o estabelecimento no Supabase
+    const { data: estData, error: estError } = await _supabase
+      .from('estabelecimentos')
+      .select('*')
+      .eq('id', usuario.estabelecimento_id)
+      .eq('ativo', true);
+
+    if (estError || !estData || estData.length === 0) {
       return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
     }
+
+    const estabelecimento = estData[0];
 
     this.estabelecimentoAtual = estabelecimento;
     this.salvarSessao(usuario, estabelecimento);
