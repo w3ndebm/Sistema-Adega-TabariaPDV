@@ -1852,17 +1852,17 @@ async function realizarCadastro(e) {
   // ==========================================
 
   const mensagem = `
-✅ ESTABELECIMENTO REGISTRADO COM SUCESSO!
+  ✅ ESTABELECIMENTO REGISTRADO COM SUCESSO!
 
-🏢 Estabelecimento: ${nomeEstabelecimento}
-📧 Email: ${email}
-🔑 Senha: ${senha}
-👔 Cargo: ADMIN (Dono)
+  🏢 Estabelecimento: ${nomeEstabelecimento}
+  📧 Email: ${email}
+  🔑 Senha: ${senha}
+  👔 Cargo: ADMIN (Dono)
 
-🌐 Acesse: https://adegatabariapdv.netlify.app/
+  🌐 Acesse: https://adegatabariapdv.netlify.app/
 
-🎉 Você já pode fazer login e gerenciar seu estabelecimento!
-  `;
+  🎉 Você já pode fazer login e gerenciar seu estabelecimento!
+    `;
 
   alert(mensagem);
 

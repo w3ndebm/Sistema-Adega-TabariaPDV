@@ -1,3 +1,9 @@
+// Conexão com o Supabase
+const SUPABASE_URL = 'https://hdsmktmdctnvigmpomrq.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_SBAwlnJPuA6Gi6uAIRNeMw_FJ6Cv...'; // Cole APENAS a sua chave aqui dentro das aspas
+
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 // ==========================================
 // MULTI-TENANT - SISTEMA PARA VÁRIAS ADEGAS
 // ==========================================
@@ -699,7 +705,7 @@ class MultiTenantManager {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
   }
 
-  salvarNovoUsuario(e) {
+ salvarNovoUsuario(e) {
     e.preventDefault();
     
     const usuarioAtual = this.getUsuarioAtual();
@@ -709,31 +715,20 @@ class MultiTenantManager {
       email: document.getElementById('nu-email').value.trim(),
       senha: document.getElementById('nu-senha').value.trim() || '123456',
       cargo: document.getElementById('nu-cargo').value,
-      estabelecimentoId: null
+      estabelecimentoId: usuarioAtual.cargo === 'super_admin' 
+        ? parseInt(document.getElementById('nu-estabelecimento').value)
+        : usuarioAtual.estabelecimentoId
     };
 
-    if (usuarioAtual.cargo === 'super_admin') {
-      const estabSelect = document.getElementById('nu-estabelecimento');
-      if (estabSelect) {
-        dados.estabelecimentoId = parseInt(estabSelect.value);
-      }
-    } else {
-      dados.estabelecimentoId = usuarioAtual.estabelecimentoId;
-    }
-
-    if (!dados.nome || !dados.email) {
-      alert('❌ Nome e email são obrigatórios!');
-      return;
-    }
-
     const resultado = this.criarUsuario(dados);
-    
+
     if (resultado.success) {
       alert(resultado.message);
-      document.getElementById('modal-novo-usuario').remove();
+      const modal = document.getElementById('modal-novo-usuario');
+      if (modal) modal.remove();
       this.atualizarPainelAdmin();
     } else {
-      alert('❌ ' + resultado.message);
+      alert(`❌ Erro: ${resultado.message}`);
     }
   }
 
