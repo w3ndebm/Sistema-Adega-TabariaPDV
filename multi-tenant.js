@@ -1,9 +1,3 @@
-// Conexão com o Supabase
-const SUPABASE_URL = 'https://hdsmktmdctnvigmpomrq.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_SBAwlnJPuA6Gi6uAIRNeMw_FJ6Cv...'; // Cole APENAS a sua chave aqui dentro das aspas
-
-const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
 // ==========================================
 // MULTI-TENANT - SISTEMA PARA VÁRIAS ADEGAS
 // ==========================================
@@ -115,41 +109,22 @@ class MultiTenantManager {
   // LOGIN (FUNÇÃO PRINCIPAL)
   // ==========================================
 
-  // ==========================================
-  // LOGIN (CONECTADO AO SUPABASE)
-  // ==========================================
+  login(email, senha) {
+    console.log('🔐 Tentando login (LocalStorage):', email);
+    
+    this.carregarDados();
 
-  async login(email, senha) {
-    console.log('🔐 Tentando login no Supabase:', email);
-
-    // 1. Consulta o usuário na tabela 'usuarios' do Supabase
-    const { data: usuarios, error } = await _supabase
-      .from('usuarios')
-      .select('*')
-      .eq('email', email.trim())
-      .eq('ativo', true);
-
-    if (error) {
-      console.error('❌ Erro na consulta do Supabase:', error.message);
-      return { success: false, message: "Erro ao conectar ao banco de dados!" };
-    }
-
-    if (!usuarios || usuarios.length === 0) {
-      console.log('❌ Usuário não encontrado ou inativo');
-      return { success: false, message: "Email ou senha incorretos!" };
-    }
-
-    const usuario = usuarios[0];
-
-    // 2. Valida a senha
-    if (usuario.senha !== senha.trim()) {
-      console.log('❌ Senha incorreta');
+    const usuario = this.usuarios.find(u => u.email === email && u.senha === senha && u.ativo);
+    
+    if (!usuario) {
+      console.log('❌ Usuário não encontrado');
+      console.log('👤 Emails disponíveis:', this.usuarios.map(u => u.email));
       return { success: false, message: "Email ou senha incorretos!" };
     }
 
     console.log('✅ Usuário encontrado:', usuario.nome);
 
-    // 3. SUPER ADMIN
+    // SUPER ADMIN
     if (usuario.cargo === 'super_admin') {
       const estabelecimentoVirtual = {
         id: 999,
@@ -170,18 +145,11 @@ class MultiTenantManager {
       };
     }
 
-    // 4. USUÁRIO NORMAL - Busca o estabelecimento no Supabase
-    const { data: estData, error: estError } = await _supabase
-      .from('estabelecimentos')
-      .select('*')
-      .eq('id', usuario.estabelecimento_id)
-      .eq('ativo', true);
-
-    if (estError || !estData || estData.length === 0) {
+    // USUÁRIO NORMAL
+    const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
+    if (!estabelecimento || !estabelecimento.ativo) {
       return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
     }
-
-    const estabelecimento = estData[0];
 
     this.estabelecimentoAtual = estabelecimento;
     this.salvarSessao(usuario, estabelecimento);
@@ -731,7 +699,7 @@ class MultiTenantManager {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
   }
 
- salvarNovoUsuario(e) {
+  salvarNovoUsuario(e) {
     e.preventDefault();
     
     const usuarioAtual = this.getUsuarioAtual();
@@ -741,20 +709,31 @@ class MultiTenantManager {
       email: document.getElementById('nu-email').value.trim(),
       senha: document.getElementById('nu-senha').value.trim() || '123456',
       cargo: document.getElementById('nu-cargo').value,
-      estabelecimentoId: usuarioAtual.cargo === 'super_admin' 
-        ? parseInt(document.getElementById('nu-estabelecimento').value)
-        : usuarioAtual.estabelecimentoId
+      estabelecimentoId: null
     };
 
-    const resultado = this.criarUsuario(dados);
+    if (usuarioAtual.cargo === 'super_admin') {
+      const estabSelect = document.getElementById('nu-estabelecimento');
+      if (estabSelect) {
+        dados.estabelecimentoId = parseInt(estabSelect.value);
+      }
+    } else {
+      dados.estabelecimentoId = usuarioAtual.estabelecimentoId;
+    }
 
+    if (!dados.nome || !dados.email) {
+      alert('❌ Nome e email são obrigatórios!');
+      return;
+    }
+
+    const resultado = this.criarUsuario(dados);
+    
     if (resultado.success) {
       alert(resultado.message);
-      const modal = document.getElementById('modal-novo-usuario');
-      if (modal) modal.remove();
+      document.getElementById('modal-novo-usuario').remove();
       this.atualizarPainelAdmin();
     } else {
-      alert(`❌ Erro: ${resultado.message}`);
+      alert('❌ ' + resultado.message);
     }
   }
 
@@ -838,10 +817,7 @@ class MultiTenantManager {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
   }
 
-  // ==========================================
-  // GRAVAR NO SUPABASE: NOVO ESTABELECIMENTO
-  // ==========================================
-  async salvarNovoEstabelecimento(e) {
+  salvarNovoEstabelecimento(e) {
     e.preventDefault();
     
     const dados = {
@@ -850,84 +826,55 @@ class MultiTenantManager {
       endereco: document.getElementById('ne-endereco').value.trim(),
       telefone: document.getElementById('ne-telefone').value.trim(),
       plano: document.getElementById('ne-plano').value,
-      total_mesas: parseInt(document.getElementById('ne-mesas').value) || 10,
-      total_comandas: parseInt(document.getElementById('ne-comandas').value) || 30
+      totalMesas: parseInt(document.getElementById('ne-mesas').value) || 10,
+      totalComandas: parseInt(document.getElementById('ne-comandas').value) || 30,
+      nomeAdmin: document.getElementById('ne-admin-nome').value.trim(),
+      emailAdmin: document.getElementById('ne-admin-email').value.trim(),
+      senhaAdmin: document.getElementById('ne-admin-senha').value.trim() || '123456'
     };
 
-    const nomeAdmin = document.getElementById('ne-admin-nome').value.trim();
-    const emailAdmin = document.getElementById('ne-admin-email').value.trim();
-    const senhaAdmin = document.getElementById('ne-admin-senha').value.trim() || '123456';
-
-    if (!dados.nome || !nomeAdmin || !emailAdmin) {
-      alert('❌ Preencha os campos obrigatórios!');
+    if (!dados.nome) {
+      alert('❌ O nome do estabelecimento é obrigatório!');
       return;
     }
 
-    // 1. Inserir Estabelecimento no Supabase
-    const { data: estData, error: estError } = await _supabase
-      .from('estabelecimentos')
-      .insert([dados])
-      .select();
-
-    if (estError) {
-      alert('❌ Erro ao criar estabelecimento: ' + estError.message);
+    if (!dados.nomeAdmin || !dados.emailAdmin) {
+      alert('❌ Os dados do administrador são obrigatórios!');
       return;
     }
 
-    const novoEstabelecimento = estData[0];
+    // Verificar se email já existe
+    if (this.usuarios.some(u => u.email === dados.emailAdmin)) {
+      alert('❌ Este email já está cadastrado!');
+      return;
+    }
 
-    // 2. Inserir Usuário Admin vinculado ao Estabelecimento
+    const resultado = this.criarEstabelecimento(dados);
+    if (!resultado.success) {
+      alert('❌ ' + resultado.message);
+      return;
+    }
+
+    // Criar usuário admin
     const novoUsuario = {
-      nome: nomeAdmin,
-      email: emailAdmin,
-      senha: senhaAdmin,
+      id: Date.now(),
+      nome: dados.nomeAdmin,
+      email: dados.emailAdmin,
+      senha: dados.senhaAdmin,
+      estabelecimentoId: resultado.estabelecimento.id,
       cargo: 'admin',
-      estabelecimento_id: novoEstabelecimento.id
+      ativo: true,
+      criadoPor: this.getUsuarioAtual().id,
+      criadoEm: new Date().toISOString()
     };
 
-    const { error: userError } = await _supabase
-      .from('usuarios')
-      .insert([novoUsuario]);
+    this.usuarios.push(novoUsuario);
+    this.salvarUsuarios();
 
-    if (userError) {
-      alert('❌ Erro ao criar usuário admin: ' + userError.message);
-      return;
-    }
+    alert(`✅ Estabelecimento "${dados.nome}" criado com sucesso!\n\n📧 Email: ${dados.emailAdmin}\n🔑 Senha: ${dados.senhaAdmin}`);
 
-    alert(`✅ Estabelecimento "${dados.nome}" cadastrado com sucesso no Supabase!`);
     document.getElementById('modal-novo-estabelecimento')?.remove();
     this.atualizarPainelAdmin();
-  }
-
-  // ==========================================
-  // GRAVAR NO SUPABASE: NOVO USUÁRIO
-  // ==========================================
-  async salvarNovoUsuario(e) {
-    e.preventDefault();
-    
-    const usuarioAtual = this.getUsuarioAtual();
-    
-    const dados = {
-      nome: document.getElementById('nu-nome').value.trim(),
-      email: document.getElementById('nu-email').value.trim(),
-      senha: document.getElementById('nu-senha').value.trim() || '123456',
-      cargo: document.getElementById('nu-cargo').value,
-      estabelecimento_id: usuarioAtual.cargo === 'super_admin' 
-        ? parseInt(document.getElementById('nu-estabelecimento').value)
-        : usuarioAtual.estabelecimentoId
-    };
-
-    const { error } = await _supabase
-      .from('usuarios')
-      .insert([dados]);
-
-    if (error) {
-      alert(`❌ Erro: ${error.message}`);
-    } else {
-      alert('✅ Usuário salvo no banco com sucesso!');
-      document.getElementById('modal-novo-usuario')?.remove();
-      this.atualizarPainelAdmin();
-    }
   }
 
   // ==========================================
