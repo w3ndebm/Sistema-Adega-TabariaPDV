@@ -24,22 +24,22 @@
       </div>
 
       <form id="form-login" onsubmit="realizarLoginMulti(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email</label>
-          <input type="email" id="login-email" required placeholder="seu@email.com" 
-                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
-        </div>
+  <div>
+    <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email</label>
+    <input type="email" id="login-email" required placeholder="seu@email.com" 
+           class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+  </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha</label>
-          <input type="password" id="login-senha-multi" required placeholder="••••••••" 
-                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
-        </div>
+  <div>
+    <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha</label>
+    <input type="password" id="login-senha-multi" required placeholder="••••••••" 
+           class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+  </div>
 
-        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
-          🚀 Entrar no Sistema
-        </button>
-      </form>
+  <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
+    🚀 Entrar no Sistema
+  </button>
+</form>
 
       <!-- BOTÃO CRIAR CONTA -->
       <div class="text-center">
@@ -58,54 +58,100 @@
   <!-- ========================================== -->
   <!-- TELA DE CADASTRO (PÚBLICA) -->
   <!-- ========================================== -->
-  <div id="tela-cadastro" class="hidden min-h-screen flex items-center justify-center p-4">
-    <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6">
-      <div class="text-center">
-        <h1 class="text-2xl font-black text-white">Criar <span class="text-emerald-400">Conta</span></h1>
-        <p class="text-xs text-gray-400 mt-1">Cadastre-se para acessar o sistema</p>
+  <!-- ========================================== -->
+<!-- TELA DE CADASTRO (PÚBLICA) COM ESTABELECIMENTO -->
+<!-- ========================================== -->
+<!-- ========================================== -->
+<!-- TELA DE CADASTRO (REGISTRAR ESTABELECIMENTO + CONTA) -->
+<!-- ========================================== -->
+<!-- ========================================== -->
+<!-- TELA DE CADASTRO (COM CAMPO DE CÓDIGO) -->
+<!-- ========================================== -->
+<div id="tela-cadastro" class="hidden min-h-screen flex items-center justify-center p-4">
+  <div class="bg-gray-800 border border-gray-700 p-8 rounded-2xl w-full max-w-md shadow-2xl space-y-6 max-h-[95vh] overflow-y-auto">
+    <div class="text-center">
+      <h1 class="text-2xl font-black text-white">Criar <span class="text-emerald-400">Conta</span></h1>
+      <p class="text-xs text-gray-400 mt-1">Cadastre seu estabelecimento e crie sua conta</p>
+    </div>
+
+    <form id="form-cadastro" onsubmit="realizarCadastro(event)" class="space-y-4">
+      
+      <!-- DADOS DO ESTABELECIMENTO -->
+      <div class="bg-gray-900/50 p-3 rounded-lg border border-emerald-800/30">
+        <p class="text-xs font-bold text-emerald-400 mb-2">🏢 Dados do Estabelecimento</p>
+        
+        <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Nome do Estabelecimento *</label>
+          <input type="text" id="cadastro-estabelecimento" required placeholder="Ex: Adega do Zé" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
+
+        <div class="mt-2">
+          <label class="block text-xs font-semibold text-gray-400 mb-1">CNPJ (Opcional)</label>
+          <input type="text" id="cadastro-cnpj" placeholder="12.345.678/0001-90" 
+                 class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
+        </div>
       </div>
 
-      <form id="form-cadastro" onsubmit="realizarCadastro(event)" class="space-y-4">
+      <!-- DADOS DO USUÁRIO -->
+      <div class="bg-gray-900/50 p-3 rounded-lg border border-amber-800/30">
+        <p class="text-xs font-bold text-amber-400 mb-2">👤 Dados do Administrador</p>
+        
         <div>
-          <label class="block text-xs font-semibold text-gray-400 mb-1">👤 Nome Completo *</label>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Nome Completo *</label>
           <input type="text" id="cadastro-nome" required placeholder="Seu nome" 
                  class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 mb-1">📧 Email *</label>
-          <input type="email" id="cadastro-email" required placeholder="seu@email.com" 
+        <div class="mt-2">
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Email *</label>
+          <input type="email" id="cadastro-email" required placeholder="admin@adega.com" 
                  class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 mb-1">🔑 Senha *</label>
+        <div class="mt-2">
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Senha *</label>
           <input type="password" id="cadastro-senha" required placeholder="••••••••" minlength="4"
                  class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 mb-1">🔁 Confirmar Senha *</label>
+        <div class="mt-2">
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Confirmar Senha *</label>
           <input type="password" id="cadastro-senha-confirm" required placeholder="••••••••" minlength="4"
                  class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500">
         </div>
-
-        <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 text-[10px] text-gray-400">
-          <p>📋 Ao se cadastrar, você concorda com os termos de uso.</p>
-          <p class="text-amber-400 mt-1">⏳ Seu cadastro será analisado pelo administrador.</p>
-        </div>
-
-        <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
-          📝 Criar Conta
-        </button>
-      </form>
-
-      <div class="text-center text-xs text-gray-400">
-        Já tem uma conta? 
-        <button onclick="mostrarTelaLogin()" class="text-emerald-400 hover:underline font-bold">Faça login</button>
       </div>
+
+      <!-- 🎟️ CÓDIGO DE CONVITE -->
+      <div>
+        <label class="block text-xs font-semibold text-gray-400 mb-1">🎟️ Código de Convite</label>
+        <input type="text" id="cadastro-convite" placeholder="Ex: ABC123XY" 
+               class="w-full bg-gray-900 border border-gray-700 p-3 rounded-lg text-sm text-white font-mono uppercase focus:outline-none focus:border-purple-500">
+        <p class="text-[10px] text-gray-500 mt-1">
+          ⚠️ <strong>Obrigatório:</strong> Código fornecido pelo administrador do sistema.
+        </p>
+        <p class="text-[10px] text-amber-400 mt-1">
+          📩 <strong>Não tem um código?</strong> Entre em contato com o administrador.
+        </p>
+      </div>
+
+      <!-- Termos -->
+      <div class="bg-gray-900/50 p-3 rounded-lg border border-gray-700/50 text-[10px] text-gray-400">
+        <p>📋 Ao se cadastrar, você concorda com os termos de uso.</p>
+        <p class="text-emerald-400 mt-1">✅ O estabelecimento e sua conta serão criados automaticamente.</p>
+      </div>
+
+      <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-lg text-sm transition-colors shadow-lg shadow-emerald-900/30">
+        🚀 Registrar Estabelecimento e Criar Conta
+      </button>
+    </form>
+
+    <div class="text-center text-xs text-gray-400">
+      Já tem uma conta? 
+      <button onclick="mostrarTelaLogin()" class="text-emerald-400 hover:underline font-bold">Faça login</button>
     </div>
   </div>
+</div>
 
   <!-- ========================================== -->
   <!-- SISTEMA PRINCIPAL -->
@@ -375,20 +421,27 @@
       <p class="text-xs text-gray-400">Gerencie estabelecimentos e usuários do sistema.</p>
       
       <!-- BOTÕES DE AÇÃO -->
-      <div class="flex flex-wrap gap-2 border-b border-gray-700 pb-3">
-        <button onclick="tenantManager.abrirModalNovoEstabelecimento()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          🏢 + Novo Estabelecimento
-        </button>
-        <button onclick="tenantManager.abrirModalNovoUsuario()" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          👤 + Novo Usuário
-        </button>
-        <button onclick="tenantManager.abrirModalPendentes()" class="bg-yellow-600 hover:bg-yellow-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          ⏳ Pendentes (<span id="badge-pendentes">0</span>)
-        </button>
-        <button onclick="atualizarPainelAdmin()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
-          🔄 Atualizar
-        </button>
-      </div>
+      <!-- BOTÕES DE AÇÃO -->
+<div class="flex flex-wrap gap-2 border-b border-gray-700 pb-3">
+  <button onclick="tenantManager.abrirModalNovoEstabelecimento()" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+    🏢 + Novo Estabelecimento
+  </button>
+  <button onclick="tenantManager.abrirModalNovoUsuario()" class="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+    👤 + Novo Usuário
+  </button>
+  
+  <!-- 🔥 BOTÕES DE CONVITE -->
+  <button onclick="tenantManager.gerarCodigoConvite()" class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+    🎟️ Gerar Convite
+  </button>
+  <button onclick="tenantManager.abrirModalConvites()" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+    📋 Convites (<span id="badge-convites">0</span>)
+  </button>
+  
+  <button onclick="atualizarPainelAdmin()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-xs font-bold text-white transition-colors">
+    🔄 Atualizar
+  </button>
+</div>
 
       <!-- ESTATÍSTICAS -->
       <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">

@@ -22,10 +22,7 @@ class MultiTenantManager {
       this.usuarios = JSON.parse(usuariosSalvos);
     } else {
       this.usuarios = [
-        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null },
-        { id: 2, nome: "João Silva", email: "joao@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "admin", ativo: true, criadoPor: 1 },
-        { id: 3, nome: "Carlos Oliveira", email: "carlos@adegaa.com", senha: "123", estabelecimentoId: 1, cargo: "caixa", ativo: true, criadoPor: 2 },
-        { id: 4, nome: "Maria Santos", email: "maria@adegab.com", senha: "123", estabelecimentoId: 2, cargo: "admin", ativo: true, criadoPor: 1 }
+        { id: 1, nome: "Super Admin", email: "super@admin.com", senha: "admin123", estabelecimentoId: null, cargo: "super_admin", ativo: true, criadoPor: null }
       ];
       this.salvarUsuarios();
     }
@@ -34,13 +31,12 @@ class MultiTenantManager {
       this.estabelecimentos = JSON.parse(estabelecimentosSalvos);
     } else {
       this.estabelecimentos = [
-        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } },
-        { id: 2, nome: "Tabacaria da Maria", cnpj: "98.765.432/0001-10", endereco: "Av. Tabacaria, 456", telefone: "(11) 88888-8888", plano: "basico", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 5, totalComandas: 15, corTema: "amber" } }
+        { id: 1, nome: "Adega do João", cnpj: "12.345.678/0001-90", endereco: "Rua das Adegas, 123", telefone: "(11) 99999-9999", plano: "premium", ativo: true, dataCadastro: new Date().toISOString(), configuracao: { totalMesas: 10, totalComandas: 30, corTema: "emerald" } }
       ];
       this.salvarEstabelecimentos();
     }
 
-    console.log('📦 Dados carregados do LocalStorage:');
+    console.log('📦 Dados carregados:');
     console.log('👤 Usuários:', this.usuarios.length);
     console.log('🏢 Estabelecimentos:', this.estabelecimentos.length);
     return this;
@@ -110,7 +106,7 @@ class MultiTenantManager {
   }
 
   // ==========================================
-  // LOGIN (SOMENTE LOCALSTORAGE)
+  // LOGIN (FUNÇÃO PRINCIPAL)
   // ==========================================
 
   login(email, senha) {
@@ -128,6 +124,7 @@ class MultiTenantManager {
 
     console.log('✅ Usuário encontrado:', usuario.nome);
 
+    // SUPER ADMIN
     if (usuario.cargo === 'super_admin') {
       const estabelecimentoVirtual = {
         id: 999,
@@ -148,6 +145,7 @@ class MultiTenantManager {
       };
     }
 
+    // USUÁRIO NORMAL
     const estabelecimento = this.estabelecimentos.find(e => e.id === usuario.estabelecimentoId);
     if (!estabelecimento || !estabelecimento.ativo) {
       return { success: false, message: "Estabelecimento inativo ou não encontrado!" };
@@ -326,10 +324,6 @@ class MultiTenantManager {
     return [];
   }
 
-  // ==========================================
-  // TOGGLE ESTABELECIMENTO
-  // ==========================================
-
   toggleEstabelecimentoStatus(id) {
     const estabelecimento = this.estabelecimentos.find(e => e.id === id);
     if (!estabelecimento) {
@@ -352,16 +346,23 @@ class MultiTenantManager {
   // PAINEL ADMIN
   // ==========================================
 
+   // ==========================================
+  // ABRIR PAINEL ADMIN
+  // ==========================================
+
   abrirPainelAdmin() {
     const usuario = this.getUsuarioAtual();
-    if (!usuario || usuario.cargo !== 'super_admin') {
-      alert('❌ Acesso restrito ao Super Administrador!');
+    if (!usuario || (usuario.cargo !== 'super_admin' && usuario.cargo !== 'admin')) {
+      alert('❌ Acesso restrito ao Super Administrador ou Administrador do Estabelecimento!');
       return;
     }
+
+    const isSuperAdmin = usuario.cargo === 'super_admin';
 
     this.carregarDados();
     document.body.classList.add('super-admin-mode');
 
+    // Esconder botões de navegação
     const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
     botoesParaEsconder.forEach(id => {
       const btn = document.getElementById(id);
@@ -372,9 +373,19 @@ class MultiTenantManager {
     if (modal) {
       modal.classList.remove('hidden');
       modal.style.display = 'flex';
+      
+      // Guardar o tipo de admin no modal
+      modal.dataset.tipoAdmin = isSuperAdmin ? 'super' : 'admin';
+      
       setTimeout(() => this.atualizarPainelAdmin(), 200);
+    } else {
+      alert('❌ Modal do Painel Admin não encontrado!');
     }
   }
+
+  // ==========================================
+  // FECHAR PAINEL ADMIN
+  // ==========================================
 
   fecharPainelAdmin() {
     const modal = document.getElementById('modal-painel-admin');
@@ -383,14 +394,71 @@ class MultiTenantManager {
       modal.style.display = 'none';
     }
     document.body.classList.remove('super-admin-mode');
+    
+    // Restaurar botões de navegação
+    const botoesParaRestaurar = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
+    botoesParaRestaurar.forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) btn.style.display = '';
+    });
+    
+    console.log('👋 Painel Admin fechado');
   }
+
+    // ==========================================
+  // ATUALIZAR PAINEL ADMIN
+  // ==========================================
 
   atualizarPainelAdmin() {
     this.carregarDados();
 
-    const totalUsuarios = this.usuarios.length;
-    const totalAtivos = this.usuarios.filter(u => u.ativo).length;
-    const totalEstabelecimentos = this.estabelecimentos.length;
+    const usuarioAtual = this.getUsuarioAtual();
+    if (!usuarioAtual) return;
+
+    const isSuperAdmin = usuarioAtual.cargo === 'super_admin';
+    const isAdmin = usuarioAtual.cargo === 'admin';
+
+    // FILTRAR USUÁRIOS PARA ADMIN (mostra apenas do seu estabelecimento)
+    let usuariosFiltrados = this.usuarios;
+    if (isAdmin) {
+      usuariosFiltrados = this.usuarios.filter(u => u.estabelecimentoId === usuarioAtual.estabelecimentoId);
+    }
+
+    // ==========================================
+    // CONTROLE DE VISIBILIDADE DOS BOTÕES
+    // ==========================================
+    
+    // Botões que só o Super Admin vê
+    const botoesSuperAdmin = [
+      'btn-novo-estabelecimento',
+      'btn-gerar-convite',
+      'btn-ver-convites'
+    ];
+    
+    botoesSuperAdmin.forEach(id => {
+      const btn = document.getElementById(id);
+      if (btn) {
+        if (isSuperAdmin) {
+          btn.style.display = 'inline-flex';
+        } else {
+          btn.style.display = 'none';
+        }
+      }
+    });
+
+    // Botão "Novo Usuário" - todos veem
+    const btnNovoUsuario = document.getElementById('btn-novo-usuario');
+    if (btnNovoUsuario) {
+      btnNovoUsuario.style.display = 'inline-flex';
+    }
+
+    // ==========================================
+    // ESTATÍSTICAS
+    // ==========================================
+
+    const totalUsuarios = usuariosFiltrados.length;
+    const totalAtivos = usuariosFiltrados.filter(u => u.ativo).length;
+    const totalEstabelecimentos = isAdmin ? 1 : this.estabelecimentos.length;
 
     const elTotalUsers = document.getElementById('admin-total-usuarios');
     const elTotalAtivos = document.getElementById('admin-total-ativos');
@@ -400,13 +468,21 @@ class MultiTenantManager {
     if (elTotalAtivos) elTotalAtivos.innerText = totalAtivos;
     if (elTotalEstab) elTotalEstab.innerText = totalEstabelecimentos;
 
-    // Renderizar estabelecimentos
+    // ==========================================
+    // RENDERIZAR ESTABELECIMENTOS
+    // ==========================================
+
     const tbodyEstab = document.getElementById('admin-lista-estabelecimentos');
     if (tbodyEstab) {
-      if (this.estabelecimentos.length === 0) {
-        tbodyEstab.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Nenhum estabelecimento cadastrado.</td></tr>`;
+      let estabelecimentosParaMostrar = this.estabelecimentos;
+      if (isAdmin) {
+        estabelecimentosParaMostrar = this.estabelecimentos.filter(e => e.id === usuarioAtual.estabelecimentoId);
+      }
+      
+      if (estabelecimentosParaMostrar.length === 0) {
+        tbodyEstab.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Nenhum estabelecimento.</td></tr>`;
       } else {
-        tbodyEstab.innerHTML = this.estabelecimentos.map(e => `
+        tbodyEstab.innerHTML = estabelecimentosParaMostrar.map(e => `
           <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
             <td class="p-2 text-gray-400">${e.id}</td>
             <td class="p-2 font-bold text-white">${e.nome}</td>
@@ -422,22 +498,27 @@ class MultiTenantManager {
               </span>
             </td>
             <td class="p-2 text-right">
-              <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
-                ${e.ativo ? 'Desativar' : 'Ativar'}
-              </button>
+              ${isSuperAdmin ? `
+                <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
+                  ${e.ativo ? 'Desativar' : 'Ativar'}
+                </button>
+              ` : '<span class="text-gray-500 text-[10px]">👀 Visualizar</span>'}
             </td>
           </tr>
         `).join('');
       }
     }
 
-    // Renderizar usuários
+    // ==========================================
+    // RENDERIZAR USUÁRIOS
+    // ==========================================
+
     const tbodyUser = document.getElementById('admin-lista-usuarios');
     if (tbodyUser) {
-      if (this.usuarios.length === 0) {
-        tbodyUser.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">Nenhum usuário cadastrado.</td></tr>`;
+      if (usuariosFiltrados.length === 0) {
+        tbodyUser.innerHTML = `<tr><td colspan="7" class="text-center text-gray-500 py-4">Nenhum usuário neste estabelecimento.</td></tr>`;
       } else {
-        tbodyUser.innerHTML = this.usuarios.map(u => {
+        tbodyUser.innerHTML = usuariosFiltrados.map(u => {
           const cargoLabel = {
             'super_admin': '👑 Super Admin',
             'admin': '🏢 Admin',
@@ -445,10 +526,14 @@ class MultiTenantManager {
             'caixa': '💰 Caixa'
           }[u.cargo] || u.cargo;
           
-          const isSuperAdmin = u.cargo === 'super_admin';
+          const isSuperAdminUser = u.cargo === 'super_admin';
+          const isCurrentUser = u.id === usuarioAtual.id;
           const estabNome = u.estabelecimentoId ? 
             this.estabelecimentos.find(e => e.id === u.estabelecimentoId)?.nome || 'N/A' : 
             'Sistema';
+          
+          const podeEditar = isSuperAdmin || 
+                             (isAdmin && u.estabelecimentoId === usuarioAtual.estabelecimentoId && !isSuperAdminUser);
           
           return `
             <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
@@ -467,13 +552,14 @@ class MultiTenantManager {
                 </span>
               </td>
               <td class="p-2 text-right space-x-1">
-                ${!isSuperAdmin ? `
+                ${!isSuperAdminUser && !isCurrentUser && podeEditar ? `
                   <button onclick="tenantManager.abrirModalEditarUsuario(${u.id})" class="bg-blue-700 hover:bg-blue-600 px-2 py-0.5 rounded text-[10px] text-white" title="Editar">✏️</button>
                   <button onclick="tenantManager.toggleUsuarioStatus(${u.id})" class="${u.ativo ? 'bg-amber-700 hover:bg-amber-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white" title="Alterar Status">
                     ${u.ativo ? '⏸️' : '▶️'}
                   </button>
                   <button onclick="tenantManager.excluirUsuario(${u.id})" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 rounded text-[10px] text-white" title="Excluir">🗑️</button>
-                ` : '<span class="text-purple-400 text-[10px] font-bold">👑</span>'}
+                ` : (isCurrentUser ? '<span class="text-gray-500 text-[10px]">(Você)</span>' : '')}
+                ${isSuperAdminUser ? '<span class="text-purple-400 text-[10px] font-bold">👑</span>' : ''}
               </td>
             </tr>
           `;
@@ -763,245 +849,186 @@ class MultiTenantManager {
       return;
     }
 
-    // Desabilitar botão
-    const btnSubmit = e.target.querySelector('button[type="submit"]');
-    const textoOriginal = btnSubmit.innerText;
-    btnSubmit.innerText = '⏳ Criando...';
-    btnSubmit.disabled = true;
-
-    try {
-      // Criar estabelecimento
-      const resultado = this.criarEstabelecimento(dados);
-      
-      if (!resultado.success) {
-        alert('❌ ' + resultado.message);
-        btnSubmit.innerText = textoOriginal;
-        btnSubmit.disabled = false;
-        return;
-      }
-
-      // Criar usuário admin
-      const novoUsuario = {
-        id: Date.now(),
-        nome: dados.nomeAdmin,
-        email: dados.emailAdmin,
-        senha: dados.senhaAdmin,
-        estabelecimentoId: resultado.estabelecimento.id,
-        cargo: 'admin',
-        ativo: true,
-        criadoPor: this.getUsuarioAtual().id,
-        criadoEm: new Date().toISOString()
-      };
-
-      this.usuarios.push(novoUsuario);
-      this.salvarUsuarios();
-
-      alert(`✅ Estabelecimento "${dados.nome}" criado com sucesso!\n\n📧 Email: ${dados.emailAdmin}\n🔑 Senha: ${dados.senhaAdmin}`);
-
-      document.getElementById('modal-novo-estabelecimento')?.remove();
-      this.atualizarPainelAdmin();
-
-    } catch (error) {
-      console.error('❌ Erro:', error);
-      alert('❌ Erro ao criar estabelecimento. Tente novamente.');
+    const resultado = this.criarEstabelecimento(dados);
+    if (!resultado.success) {
+      alert('❌ ' + resultado.message);
+      return;
     }
 
-    btnSubmit.innerText = textoOriginal;
-    btnSubmit.disabled = false;
+    // Criar usuário admin
+    const novoUsuario = {
+      id: Date.now(),
+      nome: dados.nomeAdmin,
+      email: dados.emailAdmin,
+      senha: dados.senhaAdmin,
+      estabelecimentoId: resultado.estabelecimento.id,
+      cargo: 'admin',
+      ativo: true,
+      criadoPor: this.getUsuarioAtual().id,
+      criadoEm: new Date().toISOString()
+    };
+
+    this.usuarios.push(novoUsuario);
+    this.salvarUsuarios();
+
+    alert(`✅ Estabelecimento "${dados.nome}" criado com sucesso!\n\n📧 Email: ${dados.emailAdmin}\n🔑 Senha: ${dados.senhaAdmin}`);
+
+    document.getElementById('modal-novo-estabelecimento')?.remove();
+    this.atualizarPainelAdmin();
   }
 
   // ==========================================
-  // PENDENTES
+  // SISTEMA DE CONVITE (CÓDIGOS DE ACESSO)
   // ==========================================
 
-  async abrirModalPendentes() {
+  gerarCodigoConvite() {
+    const usuario = this.getUsuarioAtual();
+    if (!usuario || usuario.cargo !== 'super_admin') {
+      alert('❌ Apenas o Super Admin pode gerar códigos!');
+      return;
+    }
+
+    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let codigo = '';
+    for (let i = 0; i < 8; i++) {
+      codigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+    }
+
+    const convites = JSON.parse(localStorage.getItem('mt_convites') || '[]');
+    
+    if (convites.some(c => c.codigo === codigo)) {
+      return this.gerarCodigoConvite();
+    }
+
+    const novoConvite = {
+      codigo: codigo,
+      criadoPor: usuario.id,
+      criadoEm: new Date().toISOString(),
+      usado: false,
+      usadoPor: null
+    };
+
+    convites.push(novoConvite);
+    localStorage.setItem('mt_convites', JSON.stringify(convites));
+
+    navigator.clipboard?.writeText(codigo);
+    
+    alert(`✅ Código de convite gerado com sucesso!\n\n📋 Código: ${codigo}\n\n🔑 O código foi copiado para sua área de transferência!`);
+    
+    const badge = document.getElementById('badge-convites');
+    if (badge) {
+      const disponiveis = convites.filter(c => !c.usado).length;
+      badge.innerText = disponiveis;
+    }
+    
+    return codigo;
+  }
+
+  validarCodigoConvite(codigo) {
+    const convites = JSON.parse(localStorage.getItem('mt_convites') || '[]');
+    const convite = convites.find(c => c.codigo === codigo && !c.usado);
+    
+    if (!convite) {
+      return { 
+        valido: false, 
+        mensagem: '❌ Código de convite inválido ou já utilizado!' 
+      };
+    }
+
+    return { 
+      valido: true, 
+      convite: convite,
+      mensagem: '✅ Código válido!' 
+    };
+  }
+
+  usarCodigoConvite(codigo, usuarioId) {
+    const convites = JSON.parse(localStorage.getItem('mt_convites') || '[]');
+    const index = convites.findIndex(c => c.codigo === codigo && !c.usado);
+    
+    if (index === -1) {
+      return false;
+    }
+
+    convites[index].usado = true;
+    convites[index].usadoPor = usuarioId;
+    convites[index].usadoEm = new Date().toISOString();
+    
+    localStorage.setItem('mt_convites', JSON.stringify(convites));
+    
+    const badge = document.getElementById('badge-convites');
+    if (badge) {
+      const disponiveis = convites.filter(c => !c.usado).length;
+      badge.innerText = disponiveis;
+    }
+    
+    return true;
+  }
+
+  listarConvites() {
+    const convites = JSON.parse(localStorage.getItem('mt_convites') || '[]');
+    return convites;
+  }
+
+  abrirModalConvites() {
     const usuario = this.getUsuarioAtual();
     if (!usuario || usuario.cargo !== 'super_admin') {
       alert('❌ Acesso restrito ao Super Administrador!');
       return;
     }
 
-    try {
-      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      const badge = document.getElementById('badge-pendentes');
-      if (badge) badge.innerText = pendentes.length;
+    const convites = this.listarConvites();
+    const total = convites.length;
+    const usados = convites.filter(c => c.usado).length;
+    const disponiveis = total - usados;
 
-      if (pendentes.length === 0) {
-        alert('✅ Nenhum cadastro pendente!');
-        return;
-      }
+    const elTotal = document.getElementById('total-convites');
+    const elUsados = document.getElementById('usados-convites');
+    const elDisponiveis = document.getElementById('disponiveis-convites');
+    const badge = document.getElementById('badge-convites');
 
-      const listaHTML = pendentes.map((p, index) => `
-        <div class="bg-gray-900 border border-gray-700 p-3 rounded-lg mb-2">
-          <div class="flex justify-between items-start">
-            <div>
-              <p class="font-bold text-white text-sm">${p.nome}</p>
-              <p class="text-xs text-gray-400">${p.email}</p>
-              <p class="text-[10px] text-gray-500">Cadastro: ${new Date(p.dataCadastro).toLocaleString('pt-BR')}</p>
-            </div>
-            <div class="flex gap-1">
-              <button onclick="tenantManager.aprovarCadastro(${index})" class="bg-emerald-600 hover:bg-emerald-500 px-2 py-1 rounded text-[10px] text-white font-bold">✅ Aprovar</button>
-              <button onclick="tenantManager.reprovarCadastro(${index})" class="bg-red-600 hover:bg-red-500 px-2 py-1 rounded text-[10px] text-white font-bold">❌ Reprovar</button>
-            </div>
+    if (elTotal) elTotal.innerText = total;
+    if (elUsados) elUsados.innerText = usados;
+    if (elDisponiveis) elDisponiveis.innerText = disponiveis;
+    if (badge) badge.innerText = disponiveis;
+
+    const lista = document.getElementById('lista-convites');
+    
+    if (!lista) return;
+
+    if (convites.length === 0) {
+      lista.innerHTML = `
+        <div class="text-center text-gray-500 py-4">
+          <p class="text-sm">🔑 Nenhum código de convite gerado.</p>
+          <p class="text-xs mt-1">Clique em "Gerar Convite" para criar um código.</p>
+        </div>
+      `;
+    } else {
+      lista.innerHTML = convites.map(c => `
+        <div class="flex justify-between items-center bg-gray-900 border ${c.usado ? 'border-gray-700/50 opacity-60' : 'border-emerald-800/50'} p-3 rounded-lg">
+          <div>
+            <p class="font-bold text-white font-mono">${c.codigo}</p>
+            <p class="text-[10px] text-gray-400">
+              ${c.usado ? `✅ Usado` : '⏳ Disponível'}
+            </p>
+            <p class="text-[10px] text-gray-500">Criado: ${new Date(c.criadoEm).toLocaleString('pt-BR')}</p>
+          </div>
+          <div class="flex gap-1">
+            ${!c.usado ? `
+              <button onclick="tenantManager.copiarCodigo('${c.codigo}')" class="bg-blue-700 hover:bg-blue-600 px-2 py-1 rounded text-[10px] text-white">📋</button>
+            ` : ''}
           </div>
         </div>
       `).join('');
-
-      const modalHTML = `
-        <div id="modal-pendentes" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[100]">
-          <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl max-h-[80vh] overflow-y-auto">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-3">
-              <h3 class="font-bold text-white text-lg">⏳ Cadastros Pendentes</h3>
-              <button onclick="document.getElementById('modal-pendentes').remove()" class="text-gray-400 hover:text-white text-xl font-bold">×</button>
-            </div>
-            <div class="space-y-2">${listaHTML}</div>
-            <div class="flex justify-end pt-2 border-t border-gray-700">
-              <button onclick="document.getElementById('modal-pendentes').remove()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-white">Fechar</button>
-            </div>
-          </div>
-        </div>
-      `;
-      document.body.insertAdjacentHTML('beforeend', modalHTML);
-    } catch (error) {
-      console.error('❌ Erro:', error);
-      alert('❌ Erro ao carregar pendentes');
     }
+
+    const modal = document.getElementById('modal-convites');
+    if (modal) modal.classList.remove('hidden');
   }
 
-  async aprovarCadastro(index) {
-    try {
-      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      const cadastro = pendentes[index];
-      if (!cadastro) {
-        alert('Cadastro não encontrado!');
-        return;
-      }
-
-      const estabelecimentos = this.listarEstabelecimentos();
-      if (estabelecimentos.length === 0) {
-        alert('❌ Nenhum estabelecimento disponível! Crie um primeiro.');
-        return;
-      }
-
-      const modalHTML = `
-        <div id="modal-aprovar" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-[150]">
-          <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
-            <h3 class="font-bold text-white text-lg">✅ Aprovar Cadastro</h3>
-            <p class="text-xs text-gray-400">Defina as permissões para <strong>${cadastro.nome}</strong></p>
-            <form onsubmit="tenantManager.confirmarAprovacao(event, ${index})" class="space-y-3">
-              <div>
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Estabelecimento</label>
-                <select id="aprovacao-estabelecimento" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-                  ${estabelecimentos.map(e => `<option value="${e.id}">${e.nome}</option>`).join('')}
-                </select>
-              </div>
-              <div>
-                <label class="block text-xs font-semibold text-gray-400 mb-1">Cargo</label>
-                <select id="aprovacao-cargo" class="w-full bg-gray-900 border border-gray-700 p-2.5 rounded text-sm text-white focus:outline-none focus:border-emerald-500">
-                  <option value="admin">Admin (Dono)</option>
-                  <option value="gerente">Gerente</option>
-                  <option value="caixa">Caixa</option>
-                </select>
-              </div>
-              <div class="flex justify-end gap-2 pt-3 border-t border-gray-700">
-                <button type="button" onclick="document.getElementById('modal-aprovar').remove()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-xs font-bold text-gray-300">Cancelar</button>
-                <button type="submit" class="bg-emerald-600 hover:bg-emerald-500 px-4 py-2 rounded text-xs font-bold text-white">✅ Aprovar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      `;
-      document.body.insertAdjacentHTML('beforeend', modalHTML);
-    } catch (error) {
-      console.error('❌ Erro:', error);
-      alert('❌ Erro ao aprovar');
-    }
-  }
-
-  async confirmarAprovacao(e, index) {
-    e.preventDefault();
-    try {
-      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      const cadastro = pendentes[index];
-      if (!cadastro) {
-        alert('Cadastro não encontrado!');
-        return;
-      }
-
-      const estabelecimentoId = parseInt(document.getElementById('aprovacao-estabelecimento').value);
-      const cargo = document.getElementById('aprovacao-cargo').value;
-
-      const novoUsuario = {
-        id: Date.now(),
-        nome: cadastro.nome,
-        email: cadastro.email,
-        senha: cadastro.senha,
-        estabelecimentoId: estabelecimentoId,
-        cargo: cargo,
-        ativo: true,
-        criadoPor: this.getUsuarioAtual().id,
-        criadoEm: new Date().toISOString()
-      };
-
-      this.usuarios.push(novoUsuario);
-      this.salvarUsuarios();
-
-      // Remover dos pendentes
-      const pendentesAtualizados = pendentes.filter(p => p.id !== cadastro.id);
-      localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesAtualizados));
-
-      const mensagem = `
-✅ CONTA APROVADA!
-📧 Email: ${novoUsuario.email}
-🔑 Senha: ${novoUsuario.senha}
-🏢 Estabelecimento: ${this.estabelecimentos.find(e => e.id === estabelecimentoId)?.nome || 'N/A'}
-👤 Nome: ${novoUsuario.nome}
-📋 Cargo: ${cargo.toUpperCase()}
-🌐 Acesse: https://adegatabariapdv.netlify.app/
-      `;
-
-      alert(mensagem);
-      navigator.clipboard?.writeText(mensagem);
-
-      document.getElementById('modal-aprovar')?.remove();
-      document.getElementById('modal-pendentes')?.remove();
-      this.atualizarPainelAdmin();
-
-      const restantes = pendentesAtualizados.length;
-      const badge = document.getElementById('badge-pendentes');
-      if (badge) badge.innerText = restantes;
-
-    } catch (error) {
-      console.error('❌ Erro:', error);
-      alert('❌ Erro ao aprovar: ' + error.message);
-    }
-  }
-
-  async reprovarCadastro(index) {
-    try {
-      let pendentes = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-      const cadastro = pendentes[index];
-      if (!cadastro) {
-        alert('Cadastro não encontrado!');
-        return;
-      }
-
-      if (confirm(`❌ Reprovar "${cadastro.nome}"?`)) {
-        const pendentesAtualizados = pendentes.filter(p => p.id !== cadastro.id);
-        localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesAtualizados));
-
-        document.getElementById('modal-pendentes')?.remove();
-        this.atualizarPainelAdmin();
-        
-        const badge = document.getElementById('badge-pendentes');
-        if (badge) badge.innerText = pendentesAtualizados.length;
-        
-        alert('✅ Cadastro reprovado!');
-      }
-    } catch (error) {
-      console.error('❌ Erro:', error);
-      alert('❌ Erro ao reprovar');
-    }
+  copiarCodigo(codigo) {
+    navigator.clipboard?.writeText(codigo);
+    alert(`✅ Código "${codigo}" copiado para sua área de transferência!`);
   }
 }
 
@@ -1029,6 +1056,13 @@ window.aprovarCadastro = (index) => tenantManager.aprovarCadastro(index);
 window.reprovarCadastro = (index) => tenantManager.reprovarCadastro(index);
 window.confirmarAprovacao = (e, index) => tenantManager.confirmarAprovacao(e, index);
 
+// FUNÇÕES DE CONVITE
+window.gerarCodigoConvite = () => tenantManager.gerarCodigoConvite();
+window.abrirModalConvites = () => tenantManager.abrirModalConvites();
+window.copiarCodigo = (codigo) => tenantManager.copiarCodigo(codigo);
+window.validarCodigoConvite = (codigo) => tenantManager.validarCodigoConvite(codigo);
+window.listarConvites = () => tenantManager.listarConvites();
+
 window.logoutMulti = () => {
   tenantManager.logout();
   document.getElementById('sistema-principal').classList.add('hidden');
@@ -1040,3 +1074,4 @@ console.log('✅ Multi-Tenant carregado com sucesso!');
 console.log(`🏢 ${tenantManager.estabelecimentos.length} estabelecimentos`);
 console.log(`👤 ${tenantManager.usuarios.length} usuários`);
 console.log('📌 Super Admin: super@admin.com / admin123');
+console.log('🎟️ Sistema de convites disponível!');

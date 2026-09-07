@@ -4,7 +4,6 @@
 
 async function carregarDadosDoDB() {
   try {
-    // Aguardar o banco ficar pronto
     if (!db.isReady) {
       await new Promise(resolve => {
         const checkReady = setInterval(() => {
@@ -16,37 +15,31 @@ async function carregarDadosDoDB() {
       });
     }
 
-    // Carregar produtos
     const produtosDB = await db.getAllProdutos();
     if (produtosDB && produtosDB.length > 0) {
       produtos = produtosDB;
     }
 
-    // Carregar pedidos
     const pedidosDB = await db.getAllPedidos();
     if (pedidosDB && pedidosDB.length > 0) {
       pedidos = pedidosDB;
     }
 
-    // Carregar comandas
     const comandasDB = await db.getAllComandas();
     if (comandasDB && comandasDB.length > 0) {
       comandas = comandasDB;
     }
 
-    // Carregar movimentações
     const movDB = await db.getAllMovimentacoes();
     if (movDB && movDB.length > 0) {
       movimentacoesCaixa = movDB;
     }
 
-    // Carregar configurações
     const configDB = await db.getConfiguracao('estabelecimento');
     if (configDB) {
       CONFIG_ESTABELECIMENTO = configDB.valor;
     }
 
-    // Carregar último fechamento
     const fechamentos = await db.getAllFechamentos();
     if (fechamentos && fechamentos.length > 0) {
       ultimoFechamentoCego = fechamentos[fechamentos.length - 1];
@@ -60,41 +53,27 @@ async function carregarDadosDoDB() {
   }
 }
 
-// Sobrescrever função salvarLocal para usar IndexedDB
 async function salvarLocal() {
   try {
-    // Salvar produtos
     for (const prod of produtos) {
       await db.saveProduto(prod);
     }
-    
-    // Salvar pedidos
     for (const ped of pedidos) {
       await db.savePedido(ped);
     }
-    
-    // Salvar comandas
     for (const com of comandas) {
       await db.saveComanda(com);
     }
-    
-    // Salvar movimentações
     for (const mov of movimentacoesCaixa) {
       await db.saveMovimentacao(mov);
     }
-    
-    // Salvar configurações
     await db.saveConfiguracao('estabelecimento', CONFIG_ESTABELECIMENTO);
-    
-    // Salvar último fechamento
     if (ultimoFechamentoCego) {
       await db.saveFechamento(ultimoFechamentoCego);
     }
-    
     console.log('💾 Dados salvos no IndexedDB');
   } catch (error) {
     console.error('❌ Erro ao salvar dados:', error);
-    // Fallback para LocalStorage
     localStorage.setItem('pdv_produtos', JSON.stringify(produtos));
     localStorage.setItem('pdv_pedidos', JSON.stringify(pedidos));
     localStorage.setItem('pdv_comandas', JSON.stringify(comandas));
@@ -109,12 +88,12 @@ async function salvarLocal() {
 // ==========================================
 // CONFIGURAÇÃO DE CAPACIDADE DO ESTABELECIMENTO
 // ==========================================
+
 let CONFIG_ESTABELECIMENTO = {
   totalMesas: 10,
   totalComandas: 30
 };
 
-// Carregar configurações salvas
 function carregarConfiguracoes() {
   const saved = localStorage.getItem("pdv_config_estabelecimento");
   if (saved) {
@@ -124,7 +103,6 @@ function carregarConfiguracoes() {
   }
 }
 
-// Salvar configurações
 function salvarConfiguracoesLocal() {
   localStorage.setItem("pdv_config_estabelecimento", JSON.stringify(CONFIG_ESTABELECIMENTO));
 }
@@ -132,6 +110,7 @@ function salvarConfiguracoesLocal() {
 // ==========================================
 // USUÁRIOS E AUTENTICAÇÃO
 // ==========================================
+
 const usuarios = [
   { usuario: "caixa", senha: "123", nome: "Operador de Caixa", cargo: "caixa" },
   { usuario: "gerente", senha: "123", nome: "Carlos Gerente", cargo: "gerente" }
@@ -142,6 +121,7 @@ let usuarioLogado = null;
 // ==========================================
 // BASE DE DADOS
 // ==========================================
+
 let produtos = [
   { id: 1, nome: "Whisky Red Label 1L", categoria: "Bebidas", custo: 55.00, preco: 89.90, estoque: 10, imagem: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=150&auto=format&fit=crop&q=60" },
   { id: 2, nome: "Whisky Jack Daniel's 1L", categoria: "Bebidas", custo: 100.00, preco: 149.90, estoque: 8, imagem: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=150&auto=format&fit=crop&q=60" },
@@ -166,6 +146,7 @@ let periodoGerenciaAtual = 'todos';
 // ==========================================
 // CARREGAR DADOS DO LOCALSTORAGE
 // ==========================================
+
 function carregarLocal() {
   const p = localStorage.getItem("pdv_produtos");
   const ped = localStorage.getItem("pdv_pedidos");
@@ -195,6 +176,7 @@ function salvarLocal() {
 // ==========================================
 // CRONÔMETRO AUTOMÁTICO DE NARGUILÉ
 // ==========================================
+
 setInterval(() => {
   let mudou = false;
   comandas.forEach(c => {
@@ -211,6 +193,7 @@ setInterval(() => {
 // ==========================================
 // LOGIN & NAVEGAÇÃO
 // ==========================================
+
 function realizarLogin(e) {
   e.preventDefault();
   const usuInput = document.getElementById("login-usuario").value.trim();
@@ -275,8 +258,8 @@ function mudarAba(aba) {
 // ==========================================
 // PAINEL DE DISPONIBILIDADE EM TEMPO REAL
 // ==========================================
+
 function atualizarPainelDisponibilidade() {
-  // Mesas
   const mesasOcupadas = comandas.filter(c => c.numMesa !== null && c.numMesa !== undefined).length;
   const mesasDisponiveis = Math.max(0, CONFIG_ESTABELECIMENTO.totalMesas - mesasOcupadas);
 
@@ -293,7 +276,6 @@ function atualizarPainelDisponibilidade() {
     }
   }
 
-  // Comandas
   const comandasAbertas = comandas.length;
   const comandasDisponiveis = Math.max(0, CONFIG_ESTABELECIMENTO.totalComandas - comandasAbertas);
 
@@ -310,7 +292,6 @@ function atualizarPainelDisponibilidade() {
     }
   }
 
-  // Narguilés
   const prodNarguile = produtos.find(p => p.nome.toLowerCase().includes("aluguel narguilé") || p.nome.toLowerCase().includes("narguilé"));
   const narguilesEmUso = comandas.filter(c => c.narguile).length;
   const narguilesTotalEstoque = prodNarguile ? prodNarguile.estoque : 0;
@@ -333,6 +314,7 @@ function atualizarPainelDisponibilidade() {
 // ==========================================
 // CONFIGURAÇÕES DO ESTABELECIMENTO
 // ==========================================
+
 function abrirModalConfiguracoes() {
   document.getElementById("config-total-mesas").value = CONFIG_ESTABELECIMENTO.totalMesas;
   document.getElementById("config-total-comandas").value = CONFIG_ESTABELECIMENTO.totalComandas;
@@ -389,6 +371,7 @@ function salvarConfiguracoes(e) {
 // ==========================================
 // COMANDAS E CONSUMO NO LOCAL
 // ==========================================
+
 function abrirModalNovaComanda() {
   document.getElementById("comanda-numero").value = "";
   document.getElementById("comanda-mesa").value = "";
@@ -421,7 +404,6 @@ function confirmarCriarComanda(e) {
   const numComanda = parseInt(numComandaRaw);
   const numMesa = numMesaRaw !== "" ? parseInt(numMesaRaw) : null;
 
-  // Validações
   const comandaJaExiste = comandas.some(c => c.numComanda === numComanda);
   if (comandaJaExiste) {
     alert(`❌ Comanda ${numComanda} já está em uso!`);
@@ -567,6 +549,7 @@ function carregarComandaParaCarrinho(idComanda) {
 // ==========================================
 // FRENTE DE CAIXA (PDV)
 // ==========================================
+
 function filtrarCategoria(categoria) {
   categoriaAtual = categoria;
   document.querySelectorAll(".btn-filtro").forEach(btn => {
@@ -635,6 +618,7 @@ function renderizarProdutos() {
 // ==========================================
 // MONTAR COMBO
 // ==========================================
+
 function abrirModalMontarCombo() {
   const selectGarrafa = document.getElementById("combo-garrafa");
   const selectEnergetico = document.getElementById("combo-energetico");
@@ -725,6 +709,7 @@ function confirmarAdicionarCombo() {
 // ==========================================
 // CARRINHO
 // ==========================================
+
 function adicionarAoCarrinho(idProduto, gelada = false) {
   const produto = produtos.find(p => p.id === idProduto);
   if (!produto || produto.estoque <= 0) {
@@ -900,7 +885,6 @@ function concluirPedido() {
 
   pedidos.unshift(novoPedido);
 
-  // Baixa no estoque
   carrinho.forEach(itemCarrinho => {
     if (itemCarrinho.isCombo) {
       itemCarrinho.componentes.forEach(comp => {
@@ -933,6 +917,7 @@ function concluirPedido() {
 // ==========================================
 // ESTOQUE
 // ==========================================
+
 function renderizarTabelaEstoque() {
   const tabela = document.getElementById("tabela-estoque");
   if (!tabela) return;
@@ -1057,6 +1042,7 @@ function excluirProduto(id) {
 // ==========================================
 // DASHBOARD DE GERÊNCIA
 // ==========================================
+
 function pedidoPertenceAoPeriodo(dataStr, periodo) {
   if (periodo === 'todos') return true;
 
@@ -1164,6 +1150,7 @@ function limparFiltroData() {
 // ==========================================
 // AUDITORIA DE CAIXA
 // ==========================================
+
 function renderizarAuditoriaCaixa() {
   const containerAuditoria = document.getElementById("painel-auditoria-caixa");
   const containerMovimentacoes = document.getElementById("lista-movimentacoes-gerencia");
@@ -1268,6 +1255,7 @@ function renderizarAuditoriaCaixa() {
 // ==========================================
 // HISTÓRICO DE PEDIDOS
 // ==========================================
+
 function renderizarHistoricoPedidos() {
   const container = document.getElementById("lista-pedidos-historico");
   if (!container) return;
@@ -1308,6 +1296,7 @@ function renderizarHistoricoPedidos() {
 // ==========================================
 // SANGRIA / SUPRIMENTO
 // ==========================================
+
 function abrirModalMovimentacao(tipo) {
   tipoMovimentacaoAtual = tipo;
   const titulo = document.getElementById("titulo-modal-movimentacao");
@@ -1349,6 +1338,7 @@ function confirmarMovimentacaoCaixa(e) {
 // ==========================================
 // FECHAMENTO CEGO
 // ==========================================
+
 function abrirModalFechamentoCego() {
   document.getElementById("fechamento-dinheiro-contado").value = "";
   document.getElementById("modal-fechamento-cego").classList.remove("hidden");
@@ -1377,6 +1367,7 @@ function processarFechamentoCego(e) {
 // ==========================================
 // ATALHOS DE TECLADO
 // ==========================================
+
 document.addEventListener("keydown", (e) => {
   const tag = document.activeElement.tagName;
   const emModal = document.querySelector(".fixed:not(.hidden)");
@@ -1420,6 +1411,7 @@ document.addEventListener("keydown", (e) => {
 // ==========================================
 // EVENTOS DE CONEXÃO
 // ==========================================
+
 window.addEventListener("online", () => {
   console.log("Conexão reestabelecida. Dados em sincronia local.");
 });
@@ -1430,6 +1422,7 @@ window.addEventListener("offline", () => {
 // ==========================================
 // INICIALIZAÇÃO
 // ==========================================
+
 carregarLocal();
 
 window.abrirModal = abrirModalProduto;
@@ -1441,18 +1434,6 @@ window.fecharModal = fecharModalProduto;
 
 // ==========================================
 // LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
-// ==========================================
-
-a// ==========================================
-// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
-// ==========================================
-
-// ==========================================
-// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
-// ==========================================
-
-// ==========================================
-// LOGIN MULTI-TENANT (VERSÃO COM SERVIDOR)
 // ==========================================
 
 // ==========================================
@@ -1472,10 +1453,9 @@ async function realizarLoginMulti(e) {
 
   console.log('🔐 Tentando login:', email);
 
-  // Carregar dados do LocalStorage
+  // CARREGAR DADOS ANTES DE TENTAR LOGAR
   tenantManager.carregarDados();
 
-  // Fazer login
   const resultado = tenantManager.login(email, senha);
 
   console.log('📊 Resultado do login:', resultado);
@@ -1516,9 +1496,13 @@ async function realizarLoginMulti(e) {
     }
   }
 
+  // ==========================================
+  // 🔥 CONTROLE DO BOTÃO ADMIN - CORRIGIDO
+  // ==========================================
   const btnAdmin = document.getElementById('btn-admin');
   if (btnAdmin) {
-    if (usuarioLogado.cargo === 'super_admin') {
+    // MOSTRAR PARA SUPER ADMIN E ADMIN
+    if (usuarioLogado.cargo === 'super_admin' || usuarioLogado.cargo === 'admin') {
       btnAdmin.classList.remove('hidden');
       btnAdmin.style.display = 'inline-flex';
     } else {
@@ -1527,6 +1511,9 @@ async function realizarLoginMulti(e) {
     }
   }
 
+  // ==========================================
+  // SUPER ADMIN - ESCONDE TUDO E MOSTRA PAINEL ADMIN
+  // ==========================================
   if (isSuperAdmin) {
     document.getElementById("aba-pdv").classList.add("hidden");
     document.getElementById("aba-comandas").classList.add("hidden");
@@ -1556,13 +1543,22 @@ async function realizarLoginMulti(e) {
     return;
   }
 
+  // ==========================================
+  // USUÁRIO NORMAL (Admin, Gerente, Caixa)
+  // ==========================================
+  
   document.querySelectorAll('nav button').forEach(btn => {
     btn.style.display = '';
   });
 
   if (btnAdmin) {
-    btnAdmin.classList.add('hidden');
-    btnAdmin.style.display = 'none';
+    if (usuarioLogado.cargo === 'admin') {
+      btnAdmin.classList.remove('hidden');
+      btnAdmin.style.display = 'inline-flex';
+    } else {
+      btnAdmin.classList.add('hidden');
+      btnAdmin.style.display = 'none';
+    }
   }
 
   document.getElementById("aba-pdv").classList.remove("hidden");
@@ -1590,6 +1586,7 @@ async function realizarLoginMulti(e) {
   
   console.log('✅ Usuário normal logado com sucesso!');
 }
+
 // ==========================================
 // CARREGAR DADOS DO ESTABELECIMENTO
 // ==========================================
@@ -1687,17 +1684,28 @@ function mostrarTelaLogin() {
 // 🔥 TELA DE CADASTRO (VERSÃO CORRIGIDA)
 // ==========================================
 
+// ==========================================
+// REALIZAR CADASTRO (COM CÓDIGO DE CONVITE)
+// ==========================================
+
 async function realizarCadastro(e) {
   e.preventDefault();
 
+  // Dados do formulário
   const nome = document.getElementById('cadastro-nome').value.trim();
   const email = document.getElementById('cadastro-email').value.trim();
   const senha = document.getElementById('cadastro-senha').value;
   const senhaConfirm = document.getElementById('cadastro-senha-confirm').value;
+  const codigoConvite = document.getElementById('cadastro-convite').value.trim().toUpperCase();
+  const nomeEstabelecimento = document.getElementById('cadastro-estabelecimento').value.trim();
+  const cnpj = document.getElementById('cadastro-cnpj').value.trim();
 
-  // Validações básicas
-  if (!nome || !email || !senha) {
-    alert('❌ Preencha todos os campos!');
+  // ==========================================
+  // VALIDAÇÕES
+  // ==========================================
+
+  if (!nome || !email || !senha || !nomeEstabelecimento) {
+    alert('❌ Preencha todos os campos obrigatórios!');
     return;
   }
 
@@ -1711,102 +1719,177 @@ async function realizarCadastro(e) {
     return;
   }
 
-  // Validação de email
   if (!email.includes('@') || !email.includes('.')) {
     alert('❌ Digite um email válido!');
     return;
   }
 
-  try {
-    console.log('📝 Tentando cadastrar:', email);
+  // ==========================================
+  // VALIDAR CÓDIGO DE CONVITE (OBRIGATÓRIO)
+  // ==========================================
 
-    // 1. Verificar se o servidor está online
-    const statusResponse = await fetch('https://adegapdv-api.onrender.com/status');
-    if (!statusResponse.ok) {
-      throw new Error('Servidor offline!');
-    }
-    console.log('✅ Servidor online');
-
-    // 2. Buscar usuários existentes
-    const usuarios = await db.getAllUsuarios() || [];
-    const usuariosPendentes = await db.getAllPendentes() || [];
-
-    // 3. Verificar se email já existe
-    if (usuarios.some(u => u.email === email)) {
-      alert('❌ Este email já está cadastrado!');
-      return;
-    }
-
-    if (usuariosPendentes.some(u => u.email === email)) {
-      alert('❌ Este email já está aguardando aprovação!');
-      return;
-    }
-
-    // 4. Criar objeto do cadastro
-    const novoCadastro = {
-      nome: nome,
-      email: email,
-      senha: senha,
-      estabelecimentoId: null,
-      cargo: null,
-      ativo: false
-    };
-
-    console.log('📤 Enviando cadastro:', novoCadastro);
-
-    // 5. Salvar no servidor
-    const response = await fetch('https://adegapdv-api.onrender.com/pendentes', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(novoCadastro)
-    });
-
-    // 6. Verificar resposta
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ Erro do servidor:', errorText);
-      throw new Error(`Erro ${response.status}: ${errorText}`);
-    }
-
-    const resultado = await response.json();
-    console.log('✅ Cadastro salvo:', resultado);
-
-    // 7. Salvar no LocalStorage como fallback
-    const pendentesLocal = JSON.parse(localStorage.getItem('mt_usuarios_pendentes') || '[]');
-    pendentesLocal.push({
-      id: Date.now(),
-      ...novoCadastro,
-      pendente: true,
-      dataCadastro: new Date().toISOString(),
-      aprovado: false
-    });
-    localStorage.setItem('mt_usuarios_pendentes', JSON.stringify(pendentesLocal));
-
-    alert(`✅ Cadastro realizado com sucesso!\n\n📧 Email: ${email}\n\n⏳ Aguarde a aprovação do administrador.\n\nVocê receberá um email quando sua conta for ativada.`);
-
-    document.getElementById('form-cadastro').reset();
-    mostrarTelaLogin();
-
-  } catch (error) {
-    console.error('❌ Erro detalhado:', error);
-    
-    // Mensagem de erro mais específica
-    let mensagemErro = '❌ Erro ao realizar cadastro. Tente novamente.';
-    
-    if (error.message.includes('Servidor offline')) {
-      mensagemErro = '❌ Servidor indisponível. Tente novamente mais tarde.';
-    } else if (error.message.includes('400')) {
-      mensagemErro = '❌ Dados inválidos. Verifique as informações.';
-    } else if (error.message.includes('500')) {
-      mensagemErro = '❌ Erro no servidor. Tente novamente.';
-    }
-    
-    alert(mensagemErro);
+  if (!codigoConvite) {
+    alert('❌ O código de convite é obrigatório!\n\n📩 Entre em contato com o administrador para obter um código.');
+    return;
   }
+
+  const validacao = tenantManager.validarCodigoConvite(codigoConvite);
+  
+  if (!validacao.valido) {
+    alert(validacao.mensagem + '\n\n📩 Entre em contato com o administrador para obter um código válido.');
+    return;
+  }
+
+  // ==========================================
+  // VERIFICAR SE O ESTABELECIMENTO JÁ EXISTE
+  // ==========================================
+
+  const estabelecimentosExistentes = tenantManager.estabelecimentos || [];
+  const estabelecimentoExistente = estabelecimentosExistentes.find(
+    e => e.nome.toLowerCase() === nomeEstabelecimento.toLowerCase()
+  );
+
+  let estabelecimentoId;
+
+  if (estabelecimentoExistente) {
+    alert(`❌ O estabelecimento "${nomeEstabelecimento}" já está cadastrado!\n\nSe você já tem cadastro, faça login.`);
+    return;
+  }
+
+  // ==========================================
+  // CRIAR ESTABELECIMENTO
+  // ==========================================
+
+  const novoEstabelecimento = {
+    id: Date.now(),
+    nome: nomeEstabelecimento,
+    cnpj: cnpj || "",
+    endereco: "",
+    telefone: "",
+    plano: "basico",
+    ativo: true,
+    dataCadastro: new Date().toISOString(),
+    configuracao: {
+      totalMesas: 10,
+      totalComandas: 30,
+      corTema: "emerald"
+    }
+  };
+
+  tenantManager.estabelecimentos.push(novoEstabelecimento);
+  tenantManager.salvarEstabelecimentos();
+  estabelecimentoId = novoEstabelecimento.id;
+  console.log('🏢 Estabelecimento criado:', novoEstabelecimento.nome);
+
+  // ==========================================
+  // VERIFICAR SE EMAIL JÁ EXISTE
+  // ==========================================
+
+  const usuariosExistentes = tenantManager.usuarios || [];
+  if (usuariosExistentes.some(u => u.email === email)) {
+    alert('❌ Este email já está cadastrado!');
+    // Remover estabelecimento criado
+    tenantManager.estabelecimentos = tenantManager.estabelecimentos.filter(
+      e => e.id !== estabelecimentoId
+    );
+    tenantManager.salvarEstabelecimentos();
+    return;
+  }
+
+  // ==========================================
+  // CRIAR USUÁRIO ADMIN
+  // ==========================================
+
+  const novoUsuario = {
+    id: Date.now(),
+    nome: nome,
+    email: email,
+    senha: senha,
+    estabelecimentoId: estabelecimentoId,
+    cargo: 'admin', // SEMPRE ADMIN (dono do estabelecimento)
+    ativo: true,
+    criadoPor: validacao.convite.criadoPor,
+    criadoEm: new Date().toISOString()
+  };
+
+  tenantManager.usuarios.push(novoUsuario);
+  tenantManager.salvarUsuarios();
+
+  // ==========================================
+  // SALVAR NO SERVIDOR (TENTAR)
+  // ==========================================
+
+  try {
+    await fetch('https://adegapdv-api.onrender.com/estabelecimentos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(novoEstabelecimento)
+    });
+    console.log('✅ Estabelecimento salvo no servidor!');
+  } catch (e) {
+    console.log('⚠️ Servidor offline, salvando apenas localmente');
+  }
+
+  try {
+    await fetch('https://adegapdv-api.onrender.com/usuarios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(novoUsuario)
+    });
+    console.log('✅ Usuário salvo no servidor!');
+  } catch (e) {
+    console.log('⚠️ Servidor offline, salvando apenas localmente');
+  }
+
+  // ==========================================
+  // MARCAR CÓDIGO COMO USADO
+  // ==========================================
+
+  tenantManager.usarCodigoConvite(codigoConvite, novoUsuario.id);
+
+  // ==========================================
+  // MENSAGEM DE SUCESSO
+  // ==========================================
+
+  const mensagem = `
+✅ ESTABELECIMENTO REGISTRADO COM SUCESSO!
+
+🏢 Estabelecimento: ${nomeEstabelecimento}
+📧 Email: ${email}
+🔑 Senha: ${senha}
+👔 Cargo: ADMIN (Dono)
+
+🌐 Acesse: https://adegatabariapdv.netlify.app/
+
+🎉 Você já pode fazer login e gerenciar seu estabelecimento!
+  `;
+
+  alert(mensagem);
+
+  // Copiar credenciais
+  try {
+    await navigator.clipboard?.writeText(
+      `Estabelecimento: ${nomeEstabelecimento}\nEmail: ${email}\nSenha: ${senha}`
+    );
+    console.log('📋 Credenciais copiadas!');
+  } catch (copyError) {
+    // Ignorar erro de cópia
+  }
+
+  // ==========================================
+  // LIMPAR FORMULÁRIO E VOLTAR PARA LOGIN
+  // ==========================================
+
+  document.getElementById('form-cadastro').reset();
+  mostrarTelaLogin();
+
+  // ==========================================
+  // RECARREGAR DADOS
+  // ==========================================
+
+  await tenantManager.carregarDados();
 }
+
 // ==========================================
 // FUNÇÃO PARA ABRIR PAINEL ADMIN
 // ==========================================
