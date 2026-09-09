@@ -1440,6 +1440,8 @@ window.fecharModal = fecharModalProduto;
 // LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
 // ==========================================
 
+// script.js - Substitua a função realizarLoginMulti
+
 async function realizarLoginMulti(e) {
   e.preventDefault();
   
@@ -1451,58 +1453,92 @@ async function realizarLoginMulti(e) {
     return;
   }
 
-  console.log('🔐 Tentando login:', email);
+  console.log('🔐 Tentando login via API:', email);
 
-  // CARREGAR DADOS ANTES DE TENTAR LOGAR
-  tenantManager.carregarDados();
+  try {
+    // 1. TENTA LOGAR PELA API (BACKEND)
+    const response = await fetch('https://adegapdv-api.onrender.com/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, senha })
+    });
 
-  const resultado = tenantManager.login(email, senha);
+    const resultado = await response.json();
 
-  console.log('📊 Resultado do login:', resultado);
+    if (resultado.success) {
+      // Login via API bem-sucedido!
+      const usuario = resultado.usuario;
+      
+      // Prepara o objeto para o frontend
+      usuarioLogado = {
+        usuario: usuario.email.split('@')[0],
+        senha: senha, // Não é seguro, mas para manter a compatibilidade
+        nome: usuario.nome,
+        cargo: usuario.cargo,
+        estabelecimentoId: usuario.estabelecimentoId,
+        estabelecimentoNome: usuario.estabelecimentoNome || 'Estabelecimento',
+        isSuperAdmin: usuario.cargo === 'super_admin'
+      };
 
-  if (!resultado.success) {
-    alert(resultado.message);
-    return;
+      // Busca as configurações do estabelecimento (opcional)
+      if (usuario.estabelecimentoId) {
+        const configResponse = await fetch(`https://adegapdv-api.onrender.com/estabelecimentos/${usuario.estabelecimentoId}`);
+        const estabelecimento = await configResponse.json();
+        CONFIG_ESTABELECIMENTO = estabelecimento.configuracao || { totalMesas: 10, totalComandas: 30 };
+      }
+
+      // Entra no sistema
+      entrarNoSistema(usuarioLogado);
+      return;
+    }
+
+    // 2. Se a API falhar, tenta o localStorage (fallback)
+    console.warn('⚠️ API falhou, tentando login local (Super Admin)');
+    const resultadoLocal = tenantManager.login(email, senha);
+    
+    if (resultadoLocal.success) {
+      const { usuario, estabelecimento, isSuperAdmin } = resultadoLocal;
+      usuarioLogado = {
+        usuario: usuario.email.split('@')[0],
+        senha: usuario.senha,
+        nome: usuario.nome,
+        cargo: usuario.cargo,
+        estabelecimentoId: estabelecimento.id,
+        estabelecimentoNome: estabelecimento.nome,
+        isSuperAdmin: isSuperAdmin || false
+      };
+      CONFIG_ESTABELECIMENTO = estabelecimento.configuracao || { totalMesas: 10, totalComandas: 30 };
+      entrarNoSistema(usuarioLogado);
+      return;
+    }
+
+    // 3. Se ambos falharem
+    alert(resultadoLocal.message || 'Email ou senha incorretos!');
+
+  } catch (error) {
+    console.error('❌ Erro no login:', error);
+    alert('Erro ao conectar com o servidor. Tente novamente.');
   }
+}
 
-  const { usuario, estabelecimento, isSuperAdmin } = resultado;
-
-  usuarioLogado = {
-    usuario: usuario.email.split('@')[0],
-    senha: usuario.senha,
-    nome: usuario.nome,
-    cargo: usuario.cargo,
-    estabelecimentoId: estabelecimento.id,
-    estabelecimentoNome: estabelecimento.nome,
-    isSuperAdmin: isSuperAdmin || false
-  };
-
-  CONFIG_ESTABELECIMENTO = estabelecimento.configuracao || { totalMesas: 10, totalComandas: 30 };
-
+// Função auxiliar para entrar no sistema
+function entrarNoSistema(usuario) {
   document.getElementById("tela-login").classList.add("hidden");
   document.getElementById("sistema-principal").classList.remove("hidden");
 
-  document.getElementById("nome-usuario-logado").innerText = usuarioLogado.nome;
-  document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
+  document.getElementById("nome-usuario-logado").innerText = usuario.nome;
+  document.getElementById("cargo-usuario-logado").innerText = usuario.cargo;
   
   const elEstabelecimento = document.getElementById("estabelecimento-nome");
   if (elEstabelecimento) {
-    if (isSuperAdmin) {
-      elEstabelecimento.innerText = "👑 SUPER ADMIN - Controle Total";
-      elEstabelecimento.className = "font-bold text-purple-400";
-    } else {
-      elEstabelecimento.innerText = estabelecimento.nome;
-      elEstabelecimento.className = "font-bold text-amber-400";
-    }
+    elEstabelecimento.innerText = usuario.estabelecimentoNome || 'Estabelecimento';
+    elEstabelecimento.className = "font-bold text-amber-400";
   }
 
-  // ==========================================
-  // 🔥 CONTROLE DO BOTÃO ADMIN - CORRIGIDO
-  // ==========================================
+  // Mostrar botão Admin para admins
   const btnAdmin = document.getElementById('btn-admin');
   if (btnAdmin) {
-    // MOSTRAR PARA SUPER ADMIN E ADMIN
-    if (usuarioLogado.cargo === 'super_admin' || usuarioLogado.cargo === 'admin') {
+    if (usuario.cargo === 'super_admin' || usuario.cargo === 'admin') {
       btnAdmin.classList.remove('hidden');
       btnAdmin.style.display = 'inline-flex';
     } else {
@@ -1511,71 +1547,15 @@ async function realizarLoginMulti(e) {
     }
   }
 
-  // ==========================================
-  // SUPER ADMIN - ESCONDE TUDO E MOSTRA PAINEL ADMIN
-  // ==========================================
-  if (isSuperAdmin) {
-    document.getElementById("aba-pdv").classList.add("hidden");
-    document.getElementById("aba-comandas").classList.add("hidden");
-    document.getElementById("aba-estoque").classList.add("hidden");
-    document.getElementById("aba-pedidos").classList.add("hidden");
-    document.getElementById("aba-gerencia").classList.add("hidden");
-    
-    const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
-    botoesParaEsconder.forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn) btn.style.display = 'none';
-    });
-
-    if (btnAdmin) {
-      btnAdmin.classList.remove('hidden');
-      btnAdmin.style.display = 'inline-flex';
-    }
-
-    const btnSair = document.getElementById('btn-sair');
-    if (btnSair) btnSair.style.display = '';
-
-    setTimeout(() => {
-      tenantManager.abrirPainelAdmin();
-    }, 300);
-    
-    console.log('👑 Super Admin logado - Painel Admin aberto!');
-    return;
-  }
-
-  // ==========================================
-  // USUÁRIO NORMAL (Admin, Gerente, Caixa)
-  // ==========================================
-  
-  document.querySelectorAll('nav button').forEach(btn => {
-    btn.style.display = '';
-  });
-
-  if (btnAdmin) {
-    if (usuarioLogado.cargo === 'admin') {
-      btnAdmin.classList.remove('hidden');
-      btnAdmin.style.display = 'inline-flex';
-    } else {
-      btnAdmin.classList.add('hidden');
-      btnAdmin.style.display = 'none';
-    }
-  }
-
-  document.getElementById("aba-pdv").classList.remove("hidden");
-  document.getElementById("aba-comandas").classList.add("hidden");
-  document.getElementById("aba-estoque").classList.add("hidden");
-  document.getElementById("aba-pedidos").classList.add("hidden");
-  document.getElementById("aba-gerencia").classList.add("hidden");
-
+  // Configurar permissões de acordo com o cargo
   const btnGerencia = document.getElementById("btn-aba-gerencia");
-  if (usuarioLogado.cargo === "gerente" || usuarioLogado.cargo === "admin") {
+  if (usuario.cargo === "gerente" || usuario.cargo === "admin") {
     btnGerencia.classList.remove("hidden");
   } else {
     btnGerencia.classList.add("hidden");
   }
 
-  await carregarDadosDoEstabelecimento();
-
+  // Renderizar tudo
   renderizarProdutos();
   renderizarCarrinho();
   renderizarTabelaEstoque();
@@ -1584,7 +1564,7 @@ async function realizarLoginMulti(e) {
   renderizarComandas();
   atualizarPainelDisponibilidade();
   
-  console.log('✅ Usuário normal logado com sucesso!');
+  console.log('✅ Login realizado com sucesso!');
 }
 
 // ==========================================
@@ -1701,7 +1681,7 @@ async function realizarCadastro(e) {
   const cnpj = document.getElementById('cadastro-cnpj').value.trim();
 
   // ==========================================
-  // VALIDAÇÕES
+  // VALIDAÇÕES (mantidas iguais)
   // ==========================================
 
   if (!nome || !email || !senha || !nomeEstabelecimento) {
@@ -1725,7 +1705,7 @@ async function realizarCadastro(e) {
   }
 
   // ==========================================
-  // VALIDAR CÓDIGO DE CONVITE (OBRIGATÓRIO)
+  // VALIDAR CÓDIGO DE CONVITE
   // ==========================================
 
   if (!codigoConvite) {
@@ -1741,7 +1721,7 @@ async function realizarCadastro(e) {
   }
 
   // ==========================================
-  // VERIFICAR SE O ESTABELECIMENTO JÁ EXISTE
+  // VERIFICAR SE O ESTABELECIMENTO JÁ EXISTE LOCALMENTE
   // ==========================================
 
   const estabelecimentosExistentes = tenantManager.estabelecimentos || [];
@@ -1749,109 +1729,123 @@ async function realizarCadastro(e) {
     e => e.nome.toLowerCase() === nomeEstabelecimento.toLowerCase()
   );
 
-  let estabelecimentoId;
-
   if (estabelecimentoExistente) {
     alert(`❌ O estabelecimento "${nomeEstabelecimento}" já está cadastrado!\n\nSe você já tem cadastro, faça login.`);
     return;
   }
 
   // ==========================================
-  // CRIAR ESTABELECIMENTO
+  // CRIAR ESTABELECIMENTO NO SERVIDOR
   // ==========================================
 
-  const novoEstabelecimento = {
-    id: Date.now(),
-    nome: nomeEstabelecimento,
-    cnpj: cnpj || "",
-    endereco: "",
-    telefone: "",
-    plano: "basico",
-    ativo: true,
-    dataCadastro: new Date().toISOString(),
-    configuracao: {
-      totalMesas: 10,
-      totalComandas: 30,
-      corTema: "emerald"
+  try {
+    // 1. CRIAR ESTABELECIMENTO
+    const responseEstab = await fetch('https://adegapdv-api.onrender.com/estabelecimentos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nome: nomeEstabelecimento,
+        cnpj: cnpj || "",
+        endereco: "",
+        telefone: "",
+        plano: "basico",
+        ativo: true,
+        configuracao: {
+          totalMesas: 10,
+          totalComandas: 30,
+          corTema: "emerald"
+        }
+      })
+    });
+
+    if (!responseEstab.ok) {
+      const erro = await responseEstab.text();
+      throw new Error(`Erro ao criar estabelecimento: ${erro}`);
     }
-  };
 
-  tenantManager.estabelecimentos.push(novoEstabelecimento);
-  tenantManager.salvarEstabelecimentos();
-  estabelecimentoId = novoEstabelecimento.id;
-  console.log('🏢 Estabelecimento criado:', novoEstabelecimento.nome);
+    const estabelecimentoCriado = await responseEstab.json();
+    const estabelecimentoId = estabelecimentoCriado.id;
+    console.log('🏢 Estabelecimento criado no servidor:', estabelecimentoCriado);
 
-  // ==========================================
-  // VERIFICAR SE EMAIL JÁ EXISTE
-  // ==========================================
+    // 2. VERIFICAR SE EMAIL JÁ EXISTE NO SERVIDOR
+    const responseUsuarios = await fetch('https://adegapdv-api.onrender.com/usuarios');
+    const usuariosExistentes = await responseUsuarios.json();
+    
+    if (usuariosExistentes.some(u => u.email === email)) {
+      alert('❌ Este email já está cadastrado!');
+      return;
+    }
 
-  const usuariosExistentes = tenantManager.usuarios || [];
-  if (usuariosExistentes.some(u => u.email === email)) {
-    alert('❌ Este email já está cadastrado!');
-    // Remover estabelecimento criado
-    tenantManager.estabelecimentos = tenantManager.estabelecimentos.filter(
-      e => e.id !== estabelecimentoId
-    );
+    // 3. CRIAR USUÁRIO ADMIN
+    const responseUser = await fetch('https://adegapdv-api.onrender.com/usuarios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nome: nome,
+        email: email,
+        senha: senha,
+        estabelecimentoId: estabelecimentoId,
+        cargo: 'admin',
+        ativo: true,
+        criadoPor: validacao.convite.criadoPor
+      })
+    });
+
+    if (!responseUser.ok) {
+      const erro = await responseUser.text();
+      throw new Error(`Erro ao criar usuário: ${erro}`);
+    }
+
+    const usuarioCriado = await responseUser.json();
+    console.log('👤 Usuário criado no servidor:', usuarioCriado);
+
+    // ==========================================
+    // SALVAR LOCALMENTE (para fallback)
+    // ==========================================
+
+    // Salvar estabelecimento no tenantManager
+    tenantManager.estabelecimentos.push({
+      id: estabelecimentoId,
+      nome: nomeEstabelecimento,
+      cnpj: cnpj || "",
+      endereco: "",
+      telefone: "",
+      plano: "basico",
+      ativo: true,
+      dataCadastro: new Date().toISOString(),
+      configuracao: {
+        totalMesas: 10,
+        totalComandas: 30,
+        corTema: "emerald"
+      }
+    });
     tenantManager.salvarEstabelecimentos();
-    return;
-  }
 
-  // ==========================================
-  // CRIAR USUÁRIO ADMIN
-  // ==========================================
-
-  const novoUsuario = {
-    id: Date.now(),
-    nome: nome,
-    email: email,
-    senha: senha,
-    estabelecimentoId: estabelecimentoId,
-    cargo: 'admin', // SEMPRE ADMIN (dono do estabelecimento)
-    ativo: true,
-    criadoPor: validacao.convite.criadoPor,
-    criadoEm: new Date().toISOString()
-  };
-
-  tenantManager.usuarios.push(novoUsuario);
-  tenantManager.salvarUsuarios();
-
-  // ==========================================
-  // SALVAR NO SERVIDOR (TENTAR)
-  // ==========================================
-
-  try {
-    await fetch('https://adegapdv-api.onrender.com/estabelecimentos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(novoEstabelecimento)
+    // Salvar usuário no tenantManager
+    tenantManager.usuarios.push({
+      id: usuarioCriado.id,
+      nome: nome,
+      email: email,
+      senha: senha,
+      estabelecimentoId: estabelecimentoId,
+      cargo: 'admin',
+      ativo: true,
+      criadoPor: validacao.convite.criadoPor,
+      criadoEm: new Date().toISOString()
     });
-    console.log('✅ Estabelecimento salvo no servidor!');
-  } catch (e) {
-    console.log('⚠️ Servidor offline, salvando apenas localmente');
-  }
+    tenantManager.salvarUsuarios();
 
-  try {
-    await fetch('https://adegapdv-api.onrender.com/usuarios', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(novoUsuario)
-    });
-    console.log('✅ Usuário salvo no servidor!');
-  } catch (e) {
-    console.log('⚠️ Servidor offline, salvando apenas localmente');
-  }
+    // ==========================================
+    // MARCAR CÓDIGO COMO USADO
+    // ==========================================
 
-  // ==========================================
-  // MARCAR CÓDIGO COMO USADO
-  // ==========================================
+    tenantManager.usarCodigoConvite(codigoConvite, usuarioCriado.id);
 
-  tenantManager.usarCodigoConvite(codigoConvite, novoUsuario.id);
+    // ==========================================
+    // MENSAGEM DE SUCESSO
+    // ==========================================
 
-  // ==========================================
-  // MENSAGEM DE SUCESSO
-  // ==========================================
-
-  const mensagem = `
+    const mensagem = `
 ✅ ESTABELECIMENTO REGISTRADO COM SUCESSO!
 
 🏢 Estabelecimento: ${nomeEstabelecimento}
@@ -1862,38 +1856,35 @@ async function realizarCadastro(e) {
 🌐 Acesse: https://adegatabariapdv.netlify.app/
 
 🎉 Você já pode fazer login e gerenciar seu estabelecimento!
-  `;
+    `;
 
-  alert(mensagem);
+    alert(mensagem);
 
-  // Copiar credenciais
-  try {
-    await navigator.clipboard?.writeText(
-      `Estabelecimento: ${nomeEstabelecimento}\nEmail: ${email}\nSenha: ${senha}`
-    );
-    console.log('📋 Credenciais copiadas!');
-  } catch (copyError) {
-    // Ignorar erro de cópia
+    // Copiar credenciais
+    try {
+      await navigator.clipboard?.writeText(
+        `Estabelecimento: ${nomeEstabelecimento}\nEmail: ${email}\nSenha: ${senha}`
+      );
+      console.log('📋 Credenciais copiadas!');
+    } catch (copyError) {
+      // Ignorar erro de cópia
+    }
+
+    // ==========================================
+    // LIMPAR FORMULÁRIO E VOLTAR PARA LOGIN
+    // ==========================================
+
+    document.getElementById('form-cadastro').reset();
+    mostrarTelaLogin();
+
+    // ==========================================
+    // RECARREGAR DADOS
+    // ==========================================
+
+    await tenantManager.carregarDados();
+
+  } catch (error) {
+    console.error('❌ Erro no cadastro:', error);
+    alert(`❌ Erro ao criar conta: ${error.message}\n\nTente novamente mais tarde.`);
   }
-
-  // ==========================================
-  // LIMPAR FORMULÁRIO E VOLTAR PARA LOGIN
-  // ==========================================
-
-  document.getElementById('form-cadastro').reset();
-  mostrarTelaLogin();
-
-  // ==========================================
-  // RECARREGAR DADOS
-  // ==========================================
-
-  await tenantManager.carregarDados();
-}
-
-// ==========================================
-// FUNÇÃO PARA ABRIR PAINEL ADMIN
-// ==========================================
-
-function abrirPainelAdmin() {
-  tenantManager.abrirPainelAdmin();
 }
