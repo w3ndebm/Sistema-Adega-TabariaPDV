@@ -118,6 +118,73 @@ const usuarios = [
 
 let usuarioLogado = null;
 
+
+// ==========================================
+// CONTROLE CENTRALIZADO DE PERMISSÕES
+// ==========================================
+function normalizarCargo(cargo) {
+  return String(cargo || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, '_');
+}
+
+function obterUsuarioSessao() {
+  if (usuarioLogado && usuarioLogado.cargo) {
+    usuarioLogado.cargo = normalizarCargo(usuarioLogado.cargo);
+    usuarioLogado.isSuperAdmin = usuarioLogado.cargo === 'super_admin';
+    return usuarioLogado;
+  }
+
+  try {
+    const salvo = localStorage.getItem('mt_sessao_atual');
+    if (!salvo) return null;
+    const usuario = JSON.parse(salvo);
+    usuario.cargo = normalizarCargo(usuario.cargo);
+    usuario.isSuperAdmin = usuario.cargo === 'super_admin';
+    usuarioLogado = usuario;
+    return usuarioLogado;
+  } catch (erro) {
+    console.error('Erro ao recuperar sessão:', erro);
+    return null;
+  }
+}
+
+function ehSuperAdmin(usuario = obterUsuarioSessao()) {
+  return normalizarCargo(usuario?.cargo) === 'super_admin';
+}
+
+function podeAcessarAdmin(usuario = obterUsuarioSessao()) {
+  const cargo = normalizarCargo(usuario?.cargo);
+  return cargo === 'super_admin' || cargo === 'admin';
+}
+
+function podeAcessarGerencia(usuario = obterUsuarioSessao()) {
+  const cargo = normalizarCargo(usuario?.cargo);
+  return ['super_admin', 'admin', 'gerente'].includes(cargo);
+}
+
+function sincronizarSessao(usuario) {
+  if (!usuario) return;
+
+  usuario.cargo = normalizarCargo(usuario.cargo);
+  usuario.isSuperAdmin = usuario.cargo === 'super_admin';
+  usuarioLogado = usuario;
+  localStorage.setItem('mt_sessao_atual', JSON.stringify(usuario));
+
+  // Compatibilidade com o multi-tenant antigo, sem deixar ele alterar o cargo.
+  if (typeof tenantManager !== 'undefined' && tenantManager) {
+    try {
+      tenantManager.usuarioAtual = { ...usuario };
+      if (typeof tenantManager.salvarSessao === 'function') {
+        tenantManager.salvarSessao({ ...usuario });
+      }
+    } catch (erro) {
+      console.warn('Não foi possível sincronizar tenantManager:', erro);
+    }
+  }
+}
+
 // ==========================================
 // BASE DE DADOS
 // ==========================================
@@ -214,7 +281,7 @@ function realizarLogin(e) {
   document.getElementById("cargo-usuario-logado").innerText = usuarioLogado.cargo;
 
   const btnGerencia = document.getElementById("btn-aba-gerencia");
-  if (usuarioLogado.cargo === "gerente") {
+  if (podeAcessarGerencia(usuarioLogado)) {
     btnGerencia.classList.remove("hidden");
   } else {
     btnGerencia.classList.add("hidden");
@@ -230,6 +297,7 @@ function realizarLogin(e) {
 }
 
 function logout() {
+  localStorage.removeItem('mt_sessao_atual');
   usuarioLogado = null;
   document.getElementById("form-login").reset();
   document.getElementById("sistema-principal").classList.add("hidden");
@@ -237,8 +305,8 @@ function logout() {
 }
 
 function mudarAba(aba) {
-  if (aba === "gerencia" && usuarioLogado.cargo !== "gerente") {
-    alert("Acesso restrito apenas para Gerentes!");
+  if (aba === "gerencia" && !podeAcessarGerencia(usuarioLogado)) {
+    alert("Acesso restrito apenas para Gerência, Administradores e Super Administrador!");
     return;
   }
 
@@ -1429,429 +1497,208 @@ window.abrirModal = abrirModalProduto;
 window.fecharModal = fecharModalProduto;
 
 // ==========================================
-// ==========================================
-// LOGIN MULTI-TENANT - API POSTGRESQL
+// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
 // ==========================================
 
-const API_URL = 'https://adegapdv-api.onrender.com';
+// ==========================================
+// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
+// ==========================================
+
+// ==========================================
+// LOGIN MULTI-TENANT (VERSÃO CORRIGIDA)
+// ==========================================
+
+// script.js - Substitua a função realizarLoginMulti
 
 async function realizarLoginMulti(e) {
   e.preventDefault();
 
-  const emailEl = document.getElementById('login-email');
-  const senhaEl = document.getElementById('login-senha-multi');
+  const emailElement = document.getElementById('login-email');
+  const senhaElement = document.getElementById('login-senha-multi');
 
-  const email = (emailEl?.value || '').trim().toLowerCase();
-  const senha = (senhaEl?.value || '').trim();
+  const email = emailElement ? emailElement.value.trim().toLowerCase() : '';
+  const senha = senhaElement ? senhaElement.value.trim() : '';
 
   if (!email || !senha) {
     alert('Preencha o e-mail e a senha!');
     return;
   }
 
-  try {
-    console.log('🔐 Login:', email);
+  console.log('======================================');
+  console.log('🔐 TENTANDO LOGIN');
+  console.log('📧 Email:', email);
+  console.log('======================================');
 
-    const response = await fetch(`${API_URL}/login`, {
+  try {
+    const response = await fetch('https://adegapdv-api.onrender.com/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ email, senha })
     });
 
     const texto = await response.text();
-    let resultado;
+    let resultado = {};
 
     try {
       resultado = JSON.parse(texto);
-    } catch {
-      throw new Error(`Resposta inválida da API (HTTP ${response.status}).`);
+    } catch (jsonError) {
+      console.error('❌ Resposta não JSON:', texto);
+      throw new Error('A API retornou uma resposta inválida.');
     }
 
-    console.log('📡 API:', response.status, resultado);
+    console.log('📡 HTTP:', response.status);
+    console.log('📦 API:', resultado);
 
     if (!response.ok || !resultado.success) {
       if (resultado.codigo === 'EMAIL_NAO_ENCONTRADO') {
         alert('❌ E-mail não encontrado.');
-      } else if (resultado.codigo === 'SENHA_INCORRETA') {
-        alert('❌ Senha incorreta.');
-      } else if (resultado.codigo === 'USUARIO_INATIVO') {
-        alert('⚠️ Usuário desativado.');
-      } else {
-        alert(resultado.error || '❌ E-mail ou senha incorretos.');
+        return;
       }
+
+      if (resultado.codigo === 'SENHA_INCORRETA') {
+        alert('❌ Senha incorreta.');
+        return;
+      }
+
+      if (resultado.codigo === 'USUARIO_INATIVO') {
+        alert('⚠️ Usuário desativado.');
+        return;
+      }
+
+      if (resultado.codigo === 'ESTABELECIMENTO_INATIVO') {
+        alert('⚠️ O estabelecimento está desativado.');
+        return;
+      }
+
+      alert(resultado.error || '❌ E-mail ou senha incorretos.');
       return;
     }
 
     const usuario = resultado.usuario;
+    usuario.cargo = normalizarCargo(usuario.cargo);
 
     usuarioLogado = {
-      id: usuario.id,
       usuario: usuario.email.split('@')[0],
+      senha: senha,
       nome: usuario.nome,
-      cargo: usuario.cargo,
-      estabelecimentoId: usuario.estabelecimentoId ?? null,
-      estabelecimentoNome: usuario.estabelecimentoNome || 'Sistema Administrativo',
-      isSuperAdmin: usuario.cargo === 'super_admin',
-      totalMesas: usuario.totalMesas || 10,
-      totalComandas: usuario.totalComandas || 30
+      email: usuario.email,
+      cargo: normalizarCargo(usuario.cargo),
+      estabelecimentoId: usuario.estabelecimentoId,
+      estabelecimentoNome: usuario.estabelecimentoNome || 'Administração do Sistema',
+      isSuperAdmin: normalizarCargo(usuario.cargo) === 'super_admin'
     };
 
     CONFIG_ESTABELECIMENTO = {
-      totalMesas: usuario.totalMesas || 10,
-      totalComandas: usuario.totalComandas || 30
+      totalMesas: Number(usuario.totalMesas) || 10,
+      totalComandas: Number(usuario.totalComandas) || 30
     };
 
-    // Sessão usada pelo restante do sistema e pelo painel administrativo.
-    localStorage.setItem('mt_sessao_atual', JSON.stringify(usuarioLogado));
+    sincronizarSessao(usuarioLogado);
 
-    // Mantém o tenantManager sincronizado quando ele existir.
-    try {
-      if (typeof tenantManager !== 'undefined') {
-        tenantManager.usuarioAtual = usuarioLogado;
-        if (typeof tenantManager.salvarSessao === 'function') {
-          tenantManager.salvarSessao(usuarioLogado);
-        }
-      }
-    } catch (syncError) {
-      console.warn('⚠️ Não foi possível sincronizar tenantManager:', syncError);
-    }
+    console.log('✅ LOGIN APROVADO:', usuario.nome);
 
     entrarNoSistema(usuarioLogado);
 
   } catch (error) {
-    console.error('❌ Erro de conexão com API:', error);
-    alert(`❌ Erro ao conectar com a API.\n\n${error.message}`);
+    console.error('❌ ERRO DE CONEXÃO COM A API:', error);
+    alert('❌ Não foi possível conectar com a API.\n\n' + error.message);
   }
 }
 
+// =====================================================
+// ENTRAR NO SISTEMA
+// =====================================================
 function entrarNoSistema(usuario) {
-  usuarioLogado = usuario;
+  usuario.cargo = normalizarCargo(usuario.cargo);
+  usuario.isSuperAdmin = usuario.cargo === 'super_admin';
+  sincronizarSessao(usuario);
 
   const telaLogin = document.getElementById('tela-login');
-  const sistema = document.getElementById('sistema-principal');
+  const sistemaPrincipal = document.getElementById('sistema-principal');
 
-  if (telaLogin) telaLogin.classList.add('hidden');
-  if (sistema) sistema.classList.remove('hidden');
+  if (telaLogin) {
+    telaLogin.classList.add('hidden');
+    telaLogin.style.display = 'none';
+  }
 
-  const nome = document.getElementById('nome-usuario-logado');
-  const cargo = document.getElementById('cargo-usuario-logado');
+  if (sistemaPrincipal) {
+    sistemaPrincipal.classList.remove('hidden');
+    sistemaPrincipal.style.display = '';
+  }
+
+  const nomeUsuario = document.getElementById('nome-usuario-logado');
+  if (nomeUsuario) {
+    nomeUsuario.innerText = usuario.nome || usuario.usuario || 'Usuário';
+  }
+
+  const cargoUsuario = document.getElementById('cargo-usuario-logado');
+  if (cargoUsuario) {
+    cargoUsuario.innerText = usuario.cargo || '';
+  }
+
   const estabelecimento = document.getElementById('estabelecimento-nome');
-
-  if (nome) nome.innerText = usuario.nome || 'Usuário';
-  if (cargo) cargo.innerText = usuario.cargo || '';
   if (estabelecimento) {
-    estabelecimento.innerText = usuario.estabelecimentoNome || 'Sistema Administrativo';
+    estabelecimento.innerText = usuario.estabelecimentoNome || 'Administração do Sistema';
+    estabelecimento.className = 'font-bold text-amber-400';
   }
 
   const btnAdmin = document.getElementById('btn-admin');
   if (btnAdmin) {
-    const permitidoAdmin = usuario.cargo === 'super_admin' || usuario.cargo === 'admin';
-    btnAdmin.classList.toggle('hidden', !permitidoAdmin);
-    btnAdmin.style.display = permitidoAdmin ? 'inline-flex' : 'none';
+    const podeAdmin = podeAcessarAdmin(usuario);
+    if (podeAdmin) {
+      btnAdmin.classList.remove('hidden');
+      btnAdmin.style.display = 'inline-flex';
+    } else {
+      btnAdmin.classList.add('hidden');
+      btnAdmin.style.display = 'none';
+    }
   }
 
   const btnGerencia = document.getElementById('btn-aba-gerencia');
   if (btnGerencia) {
-    const permitidoGerencia = ['super_admin', 'admin', 'gerente'].includes(usuario.cargo);
-    btnGerencia.classList.toggle('hidden', !permitidoGerencia);
-  }
+    const podeGerencia = podeAcessarGerencia(usuario);
 
-  // Inicializa a interface somente depois do login.
-  try { renderizarProdutos(); } catch (e) { console.warn(e); }
-  try { renderizarCarrinho(); } catch (e) { console.warn(e); }
-  try { renderizarTabelaEstoque(); } catch (e) { console.warn(e); }
-  try { renderizarHistoricoPedidos(); } catch (e) { console.warn(e); }
-  try { renderizarDashboardGerencia(); } catch (e) { console.warn(e); }
-  try { renderizarComandas(); } catch (e) { console.warn(e); }
-  try { atualizarPainelDisponibilidade(); } catch (e) { console.warn(e); }
-
-  console.log('✅ LOGIN REALIZADO NO FRONTEND:', usuario.nome);
-}
-
-function logoutMulti() {
-  try {
-    if (typeof tenantManager !== 'undefined' && typeof tenantManager.logout === 'function') {
-      tenantManager.logout();
+    if (podeGerencia) {
+      btnGerencia.classList.remove('hidden');
+      btnGerencia.style.display = '';
+    } else {
+      btnGerencia.classList.add('hidden');
+      btnGerencia.style.display = 'none';
     }
-  } catch (e) {
-    console.warn('⚠️ Erro ao sair do tenantManager:', e);
   }
 
-  localStorage.removeItem('mt_sessao_atual');
-  usuarioLogado = null;
-  carrinho = [];
+  // Renderizações opcionais: uma função com erro não derruba o login.
+  const funcoes = [
+    'renderizarProdutos',
+    'renderizarCarrinho',
+    'renderizarTabelaEstoque',
+    'renderizarHistoricoPedidos',
+    'renderizarDashboardGerencia',
+    'renderizarComandas',
+    'atualizarPainelDisponibilidade'
+  ];
 
-  const formLogin = document.getElementById('form-login');
-  if (formLogin) formLogin.reset();
-
-  document.getElementById('sistema-principal')?.classList.add('hidden');
-  document.getElementById('tela-cadastro')?.classList.add('hidden');
-  document.getElementById('tela-login')?.classList.remove('hidden');
-
-  const nome = document.getElementById('nome-usuario-logado');
-  const cargo = document.getElementById('cargo-usuario-logado');
-  const estab = document.getElementById('estabelecimento-nome');
-
-  if (nome) nome.innerText = '';
-  if (cargo) cargo.innerText = '';
-  if (estab) estab.innerText = 'Carregando...';
-}
-
-// ==========================================
-// CARREGAR DADOS DO ESTABELECIMENTO
-// ==========================================
-
-async function carregarDadosDoEstabelecimento() {
-  try {
-    if (!usuarioLogado?.estabelecimentoId) {
-      return true;
-    }
-
-    const produtosDB = await db.getAllProdutos();
-    if (produtosDB?.length) produtos = produtosDB;
-
-    const pedidosDB = await db.getAllPedidos();
-    if (pedidosDB?.length) pedidos = pedidosDB;
-
-    const comandasDB = await db.getAllComandas();
-    if (comandasDB?.length) comandas = comandasDB;
-
-    const movDB = await db.getAllMovimentacoes();
-    if (movDB?.length) movimentacoesCaixa = movDB;
-
-    console.log('✅ Dados do estabelecimento carregados');
-    return true;
-  } catch (error) {
-    console.error('❌ Erro ao carregar dados do estabelecimento:', error);
-    carregarLocal();
-    return false;
-  }
-}
-
-// ==========================================
-// TELA DE CADASTRO
-// ==========================================
-
-function mostrarTelaCadastro() {
-  document.getElementById('tela-login')?.classList.add('hidden');
-  document.getElementById('tela-cadastro')?.classList.remove('hidden');
-}
-
-function mostrarTelaLogin() {
-  document.getElementById('tela-cadastro')?.classList.add('hidden');
-  document.getElementById('tela-login')?.classList.remove('hidden');
-}
-
-// ==========================================
-// CADASTRO VIA API
-// ==========================================
-
-async function realizarCadastro(e) {
-  e.preventDefault();
-
-  const nome = document.getElementById('cadastro-nome').value.trim();
-  const email = document.getElementById('cadastro-email').value.trim().toLowerCase();
-  const senha = document.getElementById('cadastro-senha').value;
-  const senhaConfirm = document.getElementById('cadastro-senha-confirm').value;
-  const codigoConvite = document.getElementById('cadastro-convite').value.trim().toUpperCase();
-  const nomeEstabelecimento = document.getElementById('cadastro-estabelecimento').value.trim();
-  const cnpj = document.getElementById('cadastro-cnpj').value.trim();
-
-  if (!nome || !email || !senha || !nomeEstabelecimento) {
-    alert('❌ Preencha todos os campos obrigatórios!');
-    return;
-  }
-
-  if (senha !== senhaConfirm) {
-    alert('❌ As senhas não coincidem!');
-    return;
-  }
-
-  if (senha.length < 4) {
-    alert('❌ A senha deve ter pelo menos 4 caracteres!');
-    return;
-  }
-
-  if (!email.includes('@') || !email.includes('.')) {
-    alert('❌ Digite um email válido!');
-    return;
-  }
-
-  if (!codigoConvite) {
-    alert('❌ O código de convite é obrigatório!');
-    return;
-  }
-
-  // O convite continua sendo controlado pelo tenantManager, como no seu projeto original.
-  if (typeof tenantManager === 'undefined' || typeof tenantManager.validarCodigoConvite !== 'function') {
-    alert('❌ Sistema de convites indisponível.');
-    return;
-  }
-
-  const validacao = tenantManager.validarCodigoConvite(codigoConvite);
-  if (!validacao.valido) {
-    alert(validacao.mensagem || '❌ Código de convite inválido.');
-    return;
-  }
-
-  try {
-    // Primeiro verifica o email para não criar estabelecimento desnecessariamente.
-    const usuariosResponse = await fetch(`${API_URL}/usuarios`);
-    const usuariosExistentes = await usuariosResponse.json();
-
-    if (usuariosExistentes.some(u => String(u.email).trim().toLowerCase() === email)) {
-      alert('❌ Este email já está cadastrado!');
-      return;
-    }
-
-    // Cria estabelecimento no schema real do banco.
-    const responseEstab = await fetch(`${API_URL}/estabelecimentos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nome: nomeEstabelecimento,
-        cnpj: cnpj || null,
-        endereco: '',
-        telefone: '',
-        plano: 'basico',
-        totalMesas: 10,
-        totalComandas: 30,
-        ativo: true
-      })
-    });
-
-    const estabText = await responseEstab.text();
-    let estabelecimentoCriado;
-    try { estabelecimentoCriado = JSON.parse(estabText); }
-    catch { throw new Error(`Resposta inválida ao criar estabelecimento: ${estabText}`); }
-
-    if (!responseEstab.ok) {
-      throw new Error(estabelecimentoCriado.error || 'Erro ao criar estabelecimento');
-    }
-
-    const estabelecimentoId = estabelecimentoCriado.id;
-
-    // Cria usuário administrador.
-    const responseUser = await fetch(`${API_URL}/usuarios`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nome,
-        email,
-        senha,
-        estabelecimentoId,
-        cargo: 'admin',
-        ativo: true
-      })
-    });
-
-    const userText = await responseUser.text();
-    let usuarioCriado;
-    try { usuarioCriado = JSON.parse(userText); }
-    catch { throw new Error(`Resposta inválida ao criar usuário: ${userText}`); }
-
-    if (!responseUser.ok) {
-      throw new Error(usuarioCriado.error || 'Erro ao criar usuário');
-    }
-
-    // Marca o convite como usado somente depois que os dois cadastros deram certo.
-    if (typeof tenantManager.usarCodigoConvite === 'function') {
-      tenantManager.usarCodigoConvite(codigoConvite, usuarioCriado.id);
-    }
-
-    const mensagem = `✅ Conta criada com sucesso!\n\n🏢 Estabelecimento: ${nomeEstabelecimento}\n📧 Email: ${email}\n🔑 Senha: ${senha}`;
-    alert(mensagem);
-
+  for (const nomeFuncao of funcoes) {
     try {
-      await navigator.clipboard?.writeText(
-        `Estabelecimento: ${nomeEstabelecimento}\nEmail: ${email}\nSenha: ${senha}`
-      );
-    } catch (_) {}
-
-    document.getElementById('form-cadastro')?.reset();
-    mostrarTelaLogin();
-
-  } catch (error) {
-    console.error('❌ Erro no cadastro:', error);
-    alert(`❌ Erro ao criar conta:\n\n${error.message}`);
-  }
-}
-
-// ==========================================
-// PAINEL ADMIN
-// ==========================================
-
-function abrirPainelAdmin() {
-  const sessao = localStorage.getItem('mt_sessao_atual');
-
-  if (!sessao) {
-    alert('❌ Você precisa estar logado!');
-    return;
-  }
-
-  let sessaoObj;
-  try {
-    sessaoObj = JSON.parse(sessao);
-  } catch {
-    alert('❌ Sessão inválida. Faça login novamente.');
-    return;
-  }
-
-  if (!['super_admin', 'admin'].includes(sessaoObj.cargo)) {
-    alert('❌ Acesso restrito ao administrador!');
-    return;
-  }
-
-  let modal = document.getElementById('modal-painel-admin');
-
-  if (!modal) {
-    const div = document.createElement('div');
-    div.id = 'modal-painel-admin';
-    div.className = 'fixed inset-0 bg-black/90 hidden flex items-center justify-center p-4 z-[99999]';
-    div.innerHTML = `
-      <div class="bg-gray-800 border border-gray-700 p-6 rounded-xl w-full max-w-5xl space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div class="flex justify-between items-center border-b border-gray-700 pb-3">
-          <h3 class="font-bold text-white text-2xl flex items-center gap-2">
-            <span class="text-3xl">👑</span> Painel de Administração
-          </h3>
-          <button onclick="fecharPainelAdmin()" class="text-gray-400 hover:text-white text-3xl font-bold">×</button>
-        </div>
-        <div id="conteudo-painel-admin">
-          <p class="text-xs text-gray-400">Carregando...</p>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(div);
-    modal = div;
-  }
-
-  modal.classList.remove('hidden');
-  modal.style.display = 'flex';
-  document.body.classList.add('super-admin-mode');
-
-  const conteudo = document.getElementById('conteudo-painel-admin');
-  if (conteudo) {
-    conteudo.innerHTML = '<p class="text-xs text-gray-400">Carregando dados...</p>';
-  }
-
-  try {
-    if (typeof tenantManager !== 'undefined' && typeof tenantManager.atualizarPainelAdmin === 'function') {
-      tenantManager.atualizarPainelAdmin();
+      if (typeof window[nomeFuncao] === 'function') {
+        window[nomeFuncao]();
+      }
+    } catch (erro) {
+      console.warn('⚠️ Erro em ' + nomeFuncao + ':', erro);
     }
-  } catch (error) {
-    console.error('❌ Erro no painel admin:', error);
   }
+
+  console.log('======================================');
+  console.log('✅ SISTEMA ABERTO');
+  console.log('👤', usuario.nome);
+  console.log('👔', usuario.cargo);
+  console.log('🏢', usuario.estabelecimentoNome);
+  console.log('======================================');
 }
 
-function fecharPainelAdmin() {
-  const modal = document.getElementById('modal-painel-admin');
-  if (modal) {
-    modal.classList.add('hidden');
-    modal.style.display = 'none';
-  }
-  document.body.classList.remove('super-admin-mode');
-}
-
+// ==========================================
 // CARREGAR DADOS DO ESTABELECIMENTO
 // ==========================================
 
@@ -1892,6 +1739,7 @@ async function carregarDadosDoEstabelecimento() {
 // ==========================================
 
 function logoutMulti() {
+  localStorage.removeItem('mt_sessao_atual');
   tenantManager.logout();
   usuarioLogado = null;
   carrinho = [];
@@ -1928,6 +1776,15 @@ document.addEventListener("keydown", function(e) {
       fecharModalSobre();
     }
   }
+});
+
+
+
+// Restaura a sessão salva sem depender do LocalStorage antigo do tenantManager.
+document.addEventListener('DOMContentLoaded', function () {
+  const usuario = obterUsuarioSessao();
+  if (!usuario) return;
+  console.log('🔄 Sessão restaurada:', usuario.nome, usuario.cargo);
 });
 
 // ==========================================
@@ -2185,11 +2042,21 @@ function abrirPainelAdmin() {
     return;
   }
   
-  const sessaoObj = JSON.parse(sessao);
+  let sessaoObj;
+  try {
+    sessaoObj = JSON.parse(sessao);
+  } catch (erro) {
+    localStorage.removeItem('mt_sessao_atual');
+    alert('❌ Sessão inválida. Faça login novamente.');
+    return;
+  }
+
+  sessaoObj.cargo = normalizarCargo(sessaoObj.cargo);
+  sessaoObj.isSuperAdmin = sessaoObj.cargo === 'super_admin';
+  sincronizarSessao(sessaoObj);
   console.log('🔍 Sessão atual:', sessaoObj);
-  
-  // Verificar se é Super Admin ou Admin
-  if (sessaoObj.cargo !== 'super_admin' && sessaoObj.cargo !== 'admin') {
+
+  if (!podeAcessarAdmin(sessaoObj)) {
     alert('❌ Acesso restrito ao Super Administrador ou Administrador do Estabelecimento!');
     return;
   }

@@ -77,10 +77,22 @@ class MultiTenantManager {
   }
 
   getUsuarioAtual() {
-    const sessao = this.getSessaoAtual();
-    if (!sessao) return null;
-    return this.usuarios.find(u => u.id === sessao.usuarioId);
-  }
+  // PRIMEIRO: tenta ler da sessão salva pelo login via API
+  try {
+    const sessao = localStorage.getItem('mt_sessao_atual');
+    if (sessao) {
+      const s = JSON.parse(sessao);
+      s.cargo = String(s.cargo || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+      s.isSuperAdmin = s.cargo === 'super_admin';
+      if (s.cargo) return s;
+    }
+  } catch (e) {}
+
+  // FALLBACK: lê do localStorage antigo
+  const sessao = this.getSessaoAtual();
+  if (!sessao) return null;
+  return this.usuarios.find(u => u.id === sessao.usuarioId);
+}
 
   getEstabelecimentoAtual() {
     if (this.estabelecimentoAtual) return this.estabelecimentoAtual;
@@ -350,38 +362,31 @@ class MultiTenantManager {
   // ABRIR PAINEL ADMIN
   // ==========================================
 
-  abrirPainelAdmin() {
-    const usuario = this.getUsuarioAtual();
-    if (!usuario || (usuario.cargo !== 'super_admin' && usuario.cargo !== 'admin')) {
-      alert('❌ Acesso restrito ao Super Administrador ou Administrador do Estabelecimento!');
-      return;
-    }
+ abrirPainelAdmin() {
+  const usuario = this.getUsuarioAtual();
+  const cargo = String(usuario?.cargo || '').toLowerCase();
+  const autorizado = cargo === 'super_admin' || cargo === 'admin' || usuario?.isSuperAdmin === true;
 
-    const isSuperAdmin = usuario.cargo === 'super_admin';
-
-    this.carregarDados();
-    document.body.classList.add('super-admin-mode');
-
-    // Esconder botões de navegação
-    const botoesParaEsconder = ['btn-pdv', 'btn-comandas', 'btn-estoque', 'btn-pedidos', 'btn-configurar', 'btn-aba-gerencia'];
-    botoesParaEsconder.forEach(id => {
-      const btn = document.getElementById(id);
-      if (btn) btn.style.display = 'none';
-    });
-
-    const modal = document.getElementById('modal-painel-admin');
-    if (modal) {
-      modal.classList.remove('hidden');
-      modal.style.display = 'flex';
-      
-      // Guardar o tipo de admin no modal
-      modal.dataset.tipoAdmin = isSuperAdmin ? 'super' : 'admin';
-      
-      setTimeout(() => this.atualizarPainelAdmin(), 200);
-    } else {
-      alert('❌ Modal do Painel Admin não encontrado!');
-    }
+  if (!autorizado) {
+    alert('❌ Acesso restrito!');
+    return;
   }
+
+  const isSuperAdmin = cargo === 'super_admin';
+
+  this.carregarDados();
+  document.body.classList.add('super-admin-mode');
+
+  const modal = document.getElementById('modal-painel-admin');
+  if (modal) {
+    modal.classList.remove('hidden');
+    modal.style.display = 'flex';
+    modal.dataset.tipoAdmin = isSuperAdmin ? 'super' : 'admin';
+    setTimeout(() => this.atualizarPainelAdmin(), 200);
+  } else {
+    alert('❌ Modal não encontrado!');
+  }
+}
 
   // ==========================================
   // FECHAR PAINEL ADMIN
@@ -881,48 +886,58 @@ class MultiTenantManager {
   // SISTEMA DE CONVITE (CÓDIGOS DE ACESSO)
   // ==========================================
 
-  gerarCodigoConvite() {
-    const usuario = this.getUsuarioAtual();
-    if (!usuario || usuario.cargo !== 'super_admin') {
-      alert('❌ Apenas o Super Admin pode gerar códigos!');
-      return;
-    }
+  async gerarCodigoConvite() {
+  console.log('🎟️ Gerando código de convite...');
 
-    const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let codigo = '';
-    for (let i = 0; i < 8; i++) {
-      codigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
-    }
+  const usuario = this.getUsuarioAtual();
+  const cargo = String(usuario?.cargo || '').toLowerCase();
+  const autorizado = cargo === 'super_admin' || cargo === 'admin' || usuario?.isSuperAdmin === true;
 
-    const convites = JSON.parse(localStorage.getItem('mt_convites') || '[]');
-    
-    if (convites.some(c => c.codigo === codigo)) {
-      return this.gerarCodigoConvite();
-    }
-
-    const novoConvite = {
-      codigo: codigo,
-      criadoPor: usuario.id,
-      criadoEm: new Date().toISOString(),
-      usado: false,
-      usadoPor: null
-    };
-
-    convites.push(novoConvite);
-    localStorage.setItem('mt_convites', JSON.stringify(convites));
-
-    navigator.clipboard?.writeText(codigo);
-    
-    alert(`✅ Código de convite gerado com sucesso!\n\n📋 Código: ${codigo}\n\n🔑 O código foi copiado para sua área de transferência!`);
-    
-    const badge = document.getElementById('badge-convites');
-    if (badge) {
-      const disponiveis = convites.filter(c => !c.usado).length;
-      badge.innerText = disponiveis;
-    }
-    
-    return codigo;
+  if (!autorizado) {
+    alert('❌ Apenas o Super Admin ou Admin pode gerar códigos!');
+    return;
   }
+
+  // Gera código
+  const caracteres = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let codigo = '';
+  for (let i = 0; i < 8; i++) {
+    codigo += caracteres.charAt(Math.floor(Math.random() * caracteres.length));
+  }
+
+  // Salva no backend
+  try {
+    const resp = await fetch('https://adegapdv-api.onrender.com/convites', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo, criadoPor: usuario.usuarioId || usuario.id || 1 })
+    });
+    if (!resp.ok) console.warn('⚠️ Convite não salvo no backend');
+  } catch (e) {
+    console.warn('⚠️ Backend offline:', e.message);
+  }
+
+  // Salva localmente
+  const convites = JSON.parse(localStorage.getItem('mt_convites') || '[]');
+  convites.push({
+    codigo,
+    criadoPor: usuario.usuarioId || usuario.id || 1,
+    criadoEm: new Date().toISOString(),
+    usado: false,
+    usadoPor: null
+  });
+  localStorage.setItem('mt_convites', JSON.stringify(convites));
+
+  // Atualiza badge
+  const badge = document.getElementById('badge-convites');
+  if (badge) badge.innerText = convites.filter(c => !c.usado).length;
+
+  // Copia
+  try { navigator.clipboard.writeText(codigo); } catch (e) {}
+
+  alert(`✅ Código de convite gerado!\n\n📋 Código: ${codigo}\n\n🔑 Copiado!`);
+  return codigo;
+}
 
   validarCodigoConvite(codigo) {
     const convites = JSON.parse(localStorage.getItem('mt_convites') || '[]');
@@ -971,60 +986,48 @@ class MultiTenantManager {
   }
 
   abrirModalConvites() {
-    const usuario = this.getUsuarioAtual();
-    if (!usuario || usuario.cargo !== 'super_admin') {
-      alert('❌ Acesso restrito ao Super Administrador!');
-      return;
-    }
+  const usuario = this.getUsuarioAtual();
+  const cargo = String(usuario?.cargo || '').toLowerCase();
+  const autorizado = cargo === 'super_admin' || cargo === 'admin' || usuario?.isSuperAdmin === true;
 
-    const convites = this.listarConvites();
-    const total = convites.length;
-    const usados = convites.filter(c => c.usado).length;
-    const disponiveis = total - usados;
-
-    const elTotal = document.getElementById('total-convites');
-    const elUsados = document.getElementById('usados-convites');
-    const elDisponiveis = document.getElementById('disponiveis-convites');
-    const badge = document.getElementById('badge-convites');
-
-    if (elTotal) elTotal.innerText = total;
-    if (elUsados) elUsados.innerText = usados;
-    if (elDisponiveis) elDisponiveis.innerText = disponiveis;
-    if (badge) badge.innerText = disponiveis;
-
-    const lista = document.getElementById('lista-convites');
-    
-    if (!lista) return;
-
-    if (convites.length === 0) {
-      lista.innerHTML = `
-        <div class="text-center text-gray-500 py-4">
-          <p class="text-sm">🔑 Nenhum código de convite gerado.</p>
-          <p class="text-xs mt-1">Clique em "Gerar Convite" para criar um código.</p>
-        </div>
-      `;
-    } else {
-      lista.innerHTML = convites.map(c => `
-        <div class="flex justify-between items-center bg-gray-900 border ${c.usado ? 'border-gray-700/50 opacity-60' : 'border-emerald-800/50'} p-3 rounded-lg">
-          <div>
-            <p class="font-bold text-white font-mono">${c.codigo}</p>
-            <p class="text-[10px] text-gray-400">
-              ${c.usado ? `✅ Usado` : '⏳ Disponível'}
-            </p>
-            <p class="text-[10px] text-gray-500">Criado: ${new Date(c.criadoEm).toLocaleString('pt-BR')}</p>
-          </div>
-          <div class="flex gap-1">
-            ${!c.usado ? `
-              <button onclick="tenantManager.copiarCodigo('${c.codigo}')" class="bg-blue-700 hover:bg-blue-600 px-2 py-1 rounded text-[10px] text-white">📋</button>
-            ` : ''}
-          </div>
-        </div>
-      `).join('');
-    }
-
-    const modal = document.getElementById('modal-convites');
-    if (modal) modal.classList.remove('hidden');
+  if (!autorizado) {
+    alert('❌ Acesso restrito!');
+    return;
   }
+
+  const convites = this.listarConvites();
+  const disponiveis = convites.filter(c => !c.usado).length;
+
+  const badge = document.getElementById('badge-convites');
+  if (badge) badge.innerText = disponiveis;
+
+  const lista = document.getElementById('lista-convites');
+  if (!lista) {
+    alert(`📋 Você tem ${disponiveis} código(s) disponível(is) e ${convites.length} no total.`);
+    return;
+  }
+
+  if (convites.length === 0) {
+    lista.innerHTML = `<p class="text-center text-gray-500 py-4 text-sm">Nenhum código gerado ainda.</p>`;
+  } else {
+    lista.innerHTML = convites.map(c => `
+      <div class="flex justify-between items-center bg-gray-900 border ${c.usado ? 'border-gray-700/50 opacity-60' : 'border-emerald-800/50'} p-3 rounded-lg">
+        <div>
+          <p class="font-bold text-white font-mono">${c.codigo}</p>
+          <p class="text-[10px] ${c.usado ? 'text-red-400' : 'text-emerald-400'}">
+            ${c.usado ? '❌ Usado' : '✅ Disponível'}
+          </p>
+          <p class="text-[10px] text-gray-500">${new Date(c.criadoEm).toLocaleString('pt-BR')}</p>
+        </div>
+        ${!c.usado ? `<button onclick="navigator.clipboard.writeText('${c.codigo}');alert('Copiado!')" class="bg-blue-700 hover:bg-blue-600 px-2 py-1 rounded text-[10px] text-white">📋</button>` : ''}
+      </div>
+    `).join('');
+  }
+
+  const modal = document.getElementById('modal-convites');
+  if (modal) modal.classList.remove('hidden');
+  else alert(`📋 Convites: ${disponiveis} disponíveis / ${convites.length} total`);
+}
 
   copiarCodigo(codigo) {
     navigator.clipboard?.writeText(codigo);
