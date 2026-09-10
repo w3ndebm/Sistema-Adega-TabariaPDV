@@ -355,6 +355,87 @@ class MultiTenantManager {
   }
 
   // ==========================================
+// EXCLUIR ESTABELECIMENTO (com confirmação)
+// ==========================================
+
+async excluirEstabelecimento(id) {
+  const usuarioAtual = this.getUsuarioAtual();
+  const cargo = String(usuarioAtual?.cargo || '').toLowerCase();
+
+  if (cargo !== 'super_admin') {
+    alert('❌ Apenas o Super Admin pode excluir estabelecimentos!');
+    return;
+  }
+
+  const estabelecimento = this.estabelecimentos.find(e => e.id === id);
+  if (!estabelecimento) {
+    alert('❌ Estabelecimento não encontrado!');
+    return;
+  }
+
+  // Contar usuários vinculados
+  const usuariosVinculados = this.usuarios.filter(u => u.estabelecimentoId === id);
+
+  // Primeira confirmação
+  const msg1 = `⚠️ TEM CERTEZA QUE DESEJA EXCLUIR?\n\n` +
+               `🏢 Estabelecimento: ${estabelecimento.nome}\n` +
+               `👥 Usuários vinculados: ${usuariosVinculados.length}\n\n` +
+               `🚨 ESTA AÇÃO É IRREVERSÍVEL!\n` +
+               `Todos os dados (produtos, pedidos, comandas) serão apagados.`;
+
+  if (!confirm(msg1)) return;
+
+  // Segunda confirmação (digitando o nome)
+  const confirmacao = prompt(
+    `Para confirmar, digite EXATAMENTE o nome do estabelecimento:\n\n"${estabelecimento.nome}"`
+  );
+
+  if (confirmacao !== estabelecimento.nome) {
+    alert('❌ Nome incorreto. Exclusão cancelada.');
+    return;
+  }
+
+  try {
+    // 1. Excluir no BACKEND (PostgreSQL)
+    const response = await fetch(`https://adegapdv-api.onrender.com/estabelecimentos/${id}`, {
+      method: 'DELETE'
+    });
+
+    if (!response.ok) {
+      const erro = await response.text();
+      console.warn('⚠️ Erro ao excluir no backend:', erro);
+    } else {
+      console.log('✅ Estabelecimento excluído no backend');
+    }
+
+    // 2. Excluir usuários vinculados no backend
+    for (const u of usuariosVinculados) {
+      try {
+        await fetch(`https://adegapdv-api.onrender.com/usuarios/${u.id}`, {
+          method: 'DELETE'
+        });
+      } catch (e) {}
+    }
+
+    // 3. Excluir LOCALMENTE
+    this.estabelecimentos = this.estabelecimentos.filter(e => e.id !== id);
+    this.salvarEstabelecimentos();
+
+    this.usuarios = this.usuarios.filter(u => u.estabelecimentoId !== id);
+    this.salvarUsuarios();
+
+    alert(`✅ Estabelecimento "${estabelecimento.nome}" excluído com sucesso!\n\n` +
+          `🗑️ ${usuariosVinculados.length} usuário(s) também foi(ram) removido(s).`);
+
+    // 4. Atualizar painel
+    this.atualizarPainelAdmin();
+
+  } catch (error) {
+    console.error('❌ Erro ao excluir:', error);
+    alert(`❌ Erro ao excluir: ${error.message}`);
+  }
+}
+  // ==========================================
   // PAINEL ADMIN
   // ==========================================
 
@@ -477,42 +558,49 @@ class MultiTenantManager {
     // RENDERIZAR ESTABELECIMENTOS
     // ==========================================
 
-    const tbodyEstab = document.getElementById('admin-lista-estabelecimentos');
-    if (tbodyEstab) {
-      let estabelecimentosParaMostrar = this.estabelecimentos;
-      if (isAdmin) {
-        estabelecimentosParaMostrar = this.estabelecimentos.filter(e => e.id === usuarioAtual.estabelecimentoId);
-      }
-      
-      if (estabelecimentosParaMostrar.length === 0) {
-        tbodyEstab.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Nenhum estabelecimento.</td></tr>`;
-      } else {
-        tbodyEstab.innerHTML = estabelecimentosParaMostrar.map(e => `
-          <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
-            <td class="p-2 text-gray-400">${e.id}</td>
-            <td class="p-2 font-bold text-white">${e.nome}</td>
-            <td class="p-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.plano === 'enterprise' ? 'bg-purple-950 text-purple-400 border border-purple-800' : e.plano === 'premium' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
-                ${e.plano.toUpperCase()}
-              </span>
-            </td>
-            <td class="p-2 text-gray-400">${this.usuarios.filter(u => u.estabelecimentoId === e.id).length}</td>
-            <td class="p-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
-                ${e.ativo ? '🟢 Ativo' : '🔴 Inativo'}
-              </span>
-            </td>
-            <td class="p-2 text-right">
-              ${isSuperAdmin ? `
-                <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-red-700 hover:bg-red-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
-                  ${e.ativo ? 'Desativar' : 'Ativar'}
-                </button>
-              ` : '<span class="text-gray-500 text-[10px]">👀 Visualizar</span>'}
-            </td>
-          </tr>
-        `).join('');
-      }
-    }
+ // ==========================================
+// RENDERIZAR ESTABELECIMENTOS
+// ==========================================
+
+const tbodyEstab = document.getElementById('admin-lista-estabelecimentos');
+if (tbodyEstab) {
+  let estabelecimentosParaMostrar = this.estabelecimentos;
+  if (isAdmin) {
+    estabelecimentosParaMostrar = this.estabelecimentos.filter(e => e.id === usuarioAtual.estabelecimentoId);
+  }
+  
+  if (estabelecimentosParaMostrar.length === 0) {
+    tbodyEstab.innerHTML = `<tr><td colspan="6" class="text-center text-gray-500 py-4">Nenhum estabelecimento.</td></tr>`;
+  } else {
+    tbodyEstab.innerHTML = estabelecimentosParaMostrar.map(e => `
+      <tr class="border-b border-gray-700/50 hover:bg-gray-800/30">
+        <td class="p-2 text-gray-400">${e.id}</td>
+        <td class="p-2 font-bold text-white">${e.nome}</td>
+        <td class="p-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.plano === 'enterprise' ? 'bg-purple-950 text-purple-400 border border-purple-800' : e.plano === 'premium' ? 'bg-amber-950 text-amber-400 border border-amber-800' : 'bg-gray-800 text-gray-400 border border-gray-700'}">
+            ${e.plano.toUpperCase()}
+          </span>
+        </td>
+        <td class="p-2 text-gray-400">${this.usuarios.filter(u => u.estabelecimentoId === e.id).length}</td>
+        <td class="p-2">
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${e.ativo ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}">
+            ${e.ativo ? '🟢 Ativo' : '🔴 Inativo'}
+          </span>
+        </td>
+        <td class="p-2 text-right space-x-1">
+          ${isSuperAdmin ? `
+            <button onclick="tenantManager.toggleEstabelecimentoStatus(${e.id})" class="${e.ativo ? 'bg-amber-700 hover:bg-amber-600' : 'bg-emerald-700 hover:bg-emerald-600'} px-2 py-0.5 rounded text-[10px] text-white">
+              ${e.ativo ? 'Desativar' : 'Ativar'}
+            </button>
+            <button onclick="tenantManager.excluirEstabelecimento(${e.id})" class="bg-red-700 hover:bg-red-600 px-2 py-0.5 rounded text-[10px] text-white" title="Excluir">
+              🗑️ Excluir
+            </button>
+          ` : '<span class="text-gray-500 text-[10px]">👀 Visualizar</span>'}
+        </td>
+      </tr>
+    `).join('');
+  }
+}
 
     // ==========================================
     // RENDERIZAR USUÁRIOS
